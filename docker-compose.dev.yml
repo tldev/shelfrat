@@ -1,0 +1,49 @@
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    volumes:
+      # Source code — bind-mounted so edits on host are visible instantly
+      - .:/app
+
+      # Cargo caches — named volumes survive container restarts.
+      # Without these, every restart re-downloads and recompiles all deps.
+      - cargo-registry:/usr/local/cargo/registry
+      - cargo-git:/usr/local/cargo/git
+
+      # Build artifacts — separate from host target/ (different arch/toolchain).
+      # First build compiles deps (~2-4 min); subsequent builds are incremental (~2-10s).
+      - target:/app/target
+
+      # SQLite data — persists your dev database across restarts
+      - data:/data
+
+      # Library mount — point this at a local test directory with some epubs.
+      # Comment out or change the host path as needed.
+      # - ./test-library:/library:ro
+    environment:
+      DATABASE_URL: sqlite:/data/shelfrat.db
+      LIBRARY_PATH: /library
+      RUST_LOG: debug,sqlx=warn,hyper=info,reqwest=info
+      HOST: 0.0.0.0
+      PORT: "3000"
+    # Rebuild and restart the server whenever a .rs, .sql, or .toml file changes.
+    # -w scopes the watch to directories that matter (ignores web/, .git/, etc).
+    # --why logs which file triggered the rebuild.
+    command: >
+      cargo watch
+        -w crates
+        -w migrations
+        -w Cargo.toml
+        -w Cargo.lock
+        --why
+        -x run
+
+volumes:
+  cargo-registry:
+  cargo-git:
+  target:
+  data:

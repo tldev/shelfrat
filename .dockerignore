@@ -1,0 +1,11 @@
+target/
+node_modules/
+web/node_modules/
+web/build/
+web/.svelte-kit/
+.git/
+*.db
+*.db-wal
+*.db-shm
+.env
+.DS_Store

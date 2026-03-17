@@ -1,0 +1,34 @@
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+.temp/
+
+# Node modules
+node_modules/
+
+# Rust build
+target/
+
+# SvelteKit build output
+web/build/
+web/.svelte-kit/
+
+# SQLite database files
+*.db
+*.db-wal
+*.db-shm
+
+# Environment files
+.env
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo

@@ -1,0 +1,15 @@
+{
+	"private": true,
+	"scripts": {
+		"dev": "concurrently -k -n api,web -c blue,magenta \"npm run dev:api\" \"npm run dev:web\"",
+		"dev:api": "docker compose -f docker-compose.dev.yml up --build",
+		"dev:web": "npm run dev --prefix web",
+		"dev:down": "docker compose -f docker-compose.dev.yml down",
+		"test": "docker compose -f docker-compose.dev.yml exec dev cargo test",
+		"test:watch": "docker compose -f docker-compose.dev.yml exec dev cargo watch -w crates -x test",
+		"logs": "docker compose -f docker-compose.dev.yml logs -f"
+	},
+	"devDependencies": {
+		"concurrently": "^9.1.2"
+	}
+}

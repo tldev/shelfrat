@@ -1,0 +1,19 @@
+services:
+  shelfrat:
+    build: .
+    container_name: shelfrat
+    ports:
+      - "3000:3000"
+    volumes:
+      - data:/data
+      - /your/path/to/library:/library:ro
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - DATABASE_URL=sqlite:/data/shelfrat.db
+      - LIBRARY_PATH=/library
+      - RUST_LOG=info
+    restart: unless-stopped
+
+volumes:
+  data:
