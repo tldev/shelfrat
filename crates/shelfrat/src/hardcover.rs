@@ -1,6 +1,7 @@
 use serde_json::Value;
 
 use crate::metadata::ExtractedMetadata;
+use crate::provider_error::{ProviderError, ProviderResult};
 
 const HC_GRAPHQL_URL: &str = "https://api.hardcover.app/v1/graphql";
 
@@ -14,7 +15,7 @@ fn normalize_key(api_key: &str) -> &str {
 }
 
 /// Execute a GraphQL request and return the `data` field.
-async fn graphql(api_key: &str, query: &str, variables: Value) -> Option<Value> {
+async fn graphql(api_key: &str, query: &str, variables: Value) -> Result<Value, ProviderError> {
     let body = serde_json::json!({ "query": query, "variables": variables });
 
     let resp = reqwest::Client::new()
@@ -26,21 +27,30 @@ async fn graphql(api_key: &str, query: &str, variables: Value) -> Option<Value> 
         .json(&body)
         .send()
         .await
-        .ok()?;
+        .map_err(|e| ProviderError::Network(e.to_string()))?;
 
+    if resp.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+        return Err(ProviderError::RateLimited);
+    }
     if !resp.status().is_success() {
-        return None;
+        return Err(ProviderError::Network(format!("HTTP {}", resp.status())));
     }
 
-    let json: Value = resp.json().await.ok()?;
-    json.get("data").cloned()
+    let json: Value = resp
+        .json()
+        .await
+        .map_err(|e| ProviderError::Network(e.to_string()))?;
+
+    json.get("data")
+        .cloned()
+        .ok_or_else(|| ProviderError::Network("no data in response".to_string()))
 }
 
 /// Look up book metadata from Hardcover by ISBN.
 ///
 /// Queries `editions` as the top-level entity to stay within the API's
 /// max query depth of 3.
-pub async fn lookup_by_isbn(api_key: &str, isbn: &str) -> Option<ExtractedMetadata> {
+pub async fn lookup_by_isbn(api_key: &str, isbn: &str) -> ProviderResult {
     // Max depth paths: editions->publisher->name (3), editions->image->url (3),
     // editions->book->title (3), editions->book->cached_contributors (3)
     let query = r#"
@@ -64,9 +74,17 @@ pub async fn lookup_by_isbn(api_key: &str, isbn: &str) -> Option<ExtractedMetada
     "#;
 
     let data = graphql(api_key, query, serde_json::json!({ "isbn": isbn })).await?;
-    let edition = data.get("editions")?.as_array()?.first()?;
 
-    let book = edition.get("book")?;
+    let editions = data.get("editions").and_then(|e| e.as_array());
+    let Some(edition) = editions.and_then(|a| a.first()) else {
+        return Ok(vec![]);
+    };
+
+    let book = match edition.get("book") {
+        Some(b) => b,
+        None => return Ok(vec![]),
+    };
+
     let title = str_field(book, "title");
     let description = str_field(book, "description");
     let authors = extract_contributors(book.get("cached_contributors"));
@@ -80,44 +98,68 @@ pub async fn lookup_by_isbn(api_key: &str, isbn: &str) -> Option<ExtractedMetada
     let cover_url = edition.get("image").and_then(|img| str_field(img, "url"));
     let cover_data = fetch_cover_opt(cover_url.as_deref()).await;
 
-    Some(ExtractedMetadata {
+    Ok(vec![ExtractedMetadata {
         title,
         description,
         publisher,
         published_date: str_field(edition, "release_date"),
-        language: None, // would require depth 4 (editions->language->language)
+        language: None,
         isbn: isbn_val,
         authors,
         cover_data,
-    })
+        provider_id: None,
+    }])
 }
 
-/// Search Hardcover by title.
+/// Search Hardcover by title, returning lightweight results from Typesense.
 ///
-/// Uses the `search` endpoint (Typesense-backed) since `_ilike` is disabled,
-/// then fetches full book details via `books_by_pk`.
-pub async fn search_by_title(api_key: &str, title: &str) -> Option<ExtractedMetadata> {
-    // Step 1: search for the book ID
+/// Uses the `search` endpoint (Typesense-backed) since `_ilike` is disabled.
+/// Returns up to 5 results with title/authors for ranking. The caller should
+/// use `fetch_book_detail` for the winning result to get full metadata + cover.
+pub async fn search_by_title(api_key: &str, title: &str) -> ProviderResult {
+    search_internal(api_key, title).await
+}
+
+/// Search Hardcover by title and author (concatenated free text).
+pub async fn search_by_title_and_author(
+    api_key: &str,
+    title: &str,
+    author: &str,
+) -> ProviderResult {
+    let query_text = format!("{title} {author}");
+    search_internal(api_key, &query_text).await
+}
+
+async fn search_internal(api_key: &str, query_text: &str) -> ProviderResult {
     let search_query = r#"
         query SearchBooks($query: String!) {
-            search(query: $query, query_type: "Book", per_page: 1, page: 1) {
+            search(query: $query, query_type: "Book", per_page: 5, page: 1) {
                 results
             }
         }
     "#;
 
-    let data = graphql(api_key, search_query, serde_json::json!({ "query": title })).await?;
+    let data = graphql(
+        api_key,
+        search_query,
+        serde_json::json!({ "query": query_text }),
+    )
+    .await?;
 
-    let results = data.get("search")?.get("results")?;
-    let hit = results.get("hits")?.as_array()?.first()?;
-    let doc = hit.get("document")?;
+    let hits = data
+        .get("search")
+        .and_then(|s| s.get("results"))
+        .and_then(|r| r.get("hits"))
+        .and_then(|h| h.as_array())
+        .cloned()
+        .unwrap_or_default();
 
-    // Typesense IDs are strings; parse to int for books_by_pk
-    let book_id: i64 = doc
-        .get("id")
-        .and_then(|v| v.as_i64().or_else(|| v.as_str()?.parse().ok()))?;
+    Ok(parse_typesense_hits(&hits))
+}
 
-    // Step 2: fetch book details — max depth 3 (books_by_pk->editions->release_date)
+/// Fetch full book details from Hardcover by book ID.
+/// Called after ranking picks the winning search result.
+pub async fn fetch_book_detail(api_key: &str, book_id: i64) -> Option<ExtractedMetadata> {
     let detail_query = r#"
         query GetBook($id: Int!) {
             books_by_pk(id: $id) {
@@ -134,10 +176,12 @@ pub async fn search_by_title(api_key: &str, title: &str) -> Option<ExtractedMeta
         }
     "#;
 
-    let detail = graphql(api_key, detail_query, serde_json::json!({ "id": book_id })).await?;
+    let detail = graphql(api_key, detail_query, serde_json::json!({ "id": book_id }))
+        .await
+        .ok()?;
     let book = detail.get("books_by_pk")?;
 
-    let found_title = str_field(book, "title");
+    let title = str_field(book, "title");
     let description = str_field(book, "description");
     let authors = extract_contributors(book.get("cached_contributors"));
 
@@ -149,7 +193,6 @@ pub async fn search_by_title(api_key: &str, title: &str) -> Option<ExtractedMeta
     let isbn = edition.and_then(|e| str_field(e, "isbn_13").or_else(|| str_field(e, "isbn_10")));
     let published_date = edition.and_then(|e| str_field(e, "release_date"));
 
-    // cached_image is a JSONB field — may be {"url": "..."} or a bare string
     let cover_url = book.get("cached_image").and_then(|ci| {
         ci.get("url")
             .and_then(|v| v.as_str())
@@ -159,14 +202,15 @@ pub async fn search_by_title(api_key: &str, title: &str) -> Option<ExtractedMeta
     let cover_data = fetch_cover_opt(cover_url.as_deref()).await;
 
     Some(ExtractedMetadata {
-        title: found_title,
+        title,
         description,
-        publisher: None, // would require depth 4 from books_by_pk
+        publisher: None,
         published_date,
         language: None,
         isbn,
         authors,
         cover_data,
+        provider_id: None,
     })
 }
 
@@ -231,6 +275,39 @@ fn extract_contributors(value: Option<&Value>) -> Vec<String> {
         .collect()
 }
 
+/// Parse Typesense search hits into lightweight ExtractedMetadata for ranking.
+fn parse_typesense_hits(hits: &[Value]) -> Vec<ExtractedMetadata> {
+    hits.iter()
+        .filter_map(|hit| {
+            let doc = hit.get("document")?;
+
+            let book_id = doc
+                .get("id")
+                .and_then(|v| v.as_i64().or_else(|| v.as_str()?.parse().ok()));
+
+            let title = doc.get("title").and_then(|v| v.as_str()).map(String::from);
+
+            let authors = doc
+                .get("author_names")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str())
+                        .map(String::from)
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            Some(ExtractedMetadata {
+                title,
+                authors,
+                provider_id: book_id.map(|id| id.to_string()),
+                ..Default::default()
+            })
+        })
+        .collect()
+}
+
 /// Fetch a cover image, returning None if url is None or fetch fails.
 async fn fetch_cover_opt(url: Option<&str>) -> Option<Vec<u8>> {
     let url = url?;
@@ -243,4 +320,213 @@ async fn fetch_cover_opt(url: Option<&str>) -> Option<Vec<u8>> {
         return None;
     }
     Some(bytes.to_vec())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- str_field ---
+
+    #[test]
+    fn str_field_valid() {
+        let obj = serde_json::json!({"title": "Dune"});
+        assert_eq!(str_field(&obj, "title"), Some("Dune".to_string()));
+    }
+
+    #[test]
+    fn str_field_empty_string_returns_none() {
+        let obj = serde_json::json!({"title": ""});
+        assert_eq!(str_field(&obj, "title"), None);
+    }
+
+    #[test]
+    fn str_field_missing_key_returns_none() {
+        let obj = serde_json::json!({"other": "value"});
+        assert_eq!(str_field(&obj, "title"), None);
+    }
+
+    #[test]
+    fn str_field_non_string_returns_none() {
+        let obj = serde_json::json!({"count": 42});
+        assert_eq!(str_field(&obj, "count"), None);
+    }
+
+    #[test]
+    fn str_field_null_returns_none() {
+        let obj = serde_json::json!({"title": null});
+        assert_eq!(str_field(&obj, "title"), None);
+    }
+
+    // --- extract_contributors ---
+
+    #[test]
+    fn contributors_author_name_format() {
+        let val = serde_json::json!([
+            {"author": {"name": "Frank Herbert"}},
+            {"author": {"name": "Brian Herbert"}}
+        ]);
+        let result = extract_contributors(Some(&val));
+        assert_eq!(result, vec!["Frank Herbert", "Brian Herbert"]);
+    }
+
+    #[test]
+    fn contributors_name_format() {
+        let val = serde_json::json!([
+            {"name": "Stephen King"},
+            {"name": "Peter Straub"}
+        ]);
+        let result = extract_contributors(Some(&val));
+        assert_eq!(result, vec!["Stephen King", "Peter Straub"]);
+    }
+
+    #[test]
+    fn contributors_bare_string_format() {
+        let val = serde_json::json!(["Author One", "Author Two"]);
+        let result = extract_contributors(Some(&val));
+        assert_eq!(result, vec!["Author One", "Author Two"]);
+    }
+
+    #[test]
+    fn contributors_mixed_formats() {
+        let val = serde_json::json!([
+            {"author": {"name": "From Author Key"}},
+            {"name": "From Name Key"},
+            "Bare String"
+        ]);
+        let result = extract_contributors(Some(&val));
+        assert_eq!(
+            result,
+            vec!["From Author Key", "From Name Key", "Bare String"]
+        );
+    }
+
+    #[test]
+    fn contributors_empty_array() {
+        let val = serde_json::json!([]);
+        let result = extract_contributors(Some(&val));
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn contributors_none() {
+        let result = extract_contributors(None);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn contributors_not_array() {
+        let val = serde_json::json!("not an array");
+        let result = extract_contributors(Some(&val));
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn contributors_filters_empty_names() {
+        let val = serde_json::json!([
+            {"name": ""},
+            {"name": "Valid Author"},
+            ""
+        ]);
+        let result = extract_contributors(Some(&val));
+        assert_eq!(result, vec!["Valid Author"]);
+    }
+
+    // --- parse_typesense_hits ---
+
+    #[test]
+    fn typesense_hit_with_all_fields() {
+        let hits = vec![serde_json::json!({
+            "document": {
+                "id": 12345,
+                "title": "Dune",
+                "author_names": ["Frank Herbert"]
+            }
+        })];
+        let results = parse_typesense_hits(&hits);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].title.as_deref(), Some("Dune"));
+        assert_eq!(results[0].authors, vec!["Frank Herbert"]);
+        assert_eq!(results[0].provider_id.as_deref(), Some("12345"));
+    }
+
+    #[test]
+    fn typesense_hit_id_as_string() {
+        let hits = vec![serde_json::json!({
+            "document": {
+                "id": "67890",
+                "title": "Test"
+            }
+        })];
+        let results = parse_typesense_hits(&hits);
+        assert_eq!(results[0].provider_id.as_deref(), Some("67890"));
+    }
+
+    #[test]
+    fn typesense_hit_no_document_skipped() {
+        let hits = vec![serde_json::json!({"highlight": {}})];
+        let results = parse_typesense_hits(&hits);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn typesense_hit_no_authors() {
+        let hits = vec![serde_json::json!({
+            "document": {
+                "id": 1,
+                "title": "Orphan Book"
+            }
+        })];
+        let results = parse_typesense_hits(&hits);
+        assert!(results[0].authors.is_empty());
+    }
+
+    #[test]
+    fn typesense_multiple_hits() {
+        let hits = vec![
+            serde_json::json!({"document": {"id": 1, "title": "A", "author_names": ["X"]}}),
+            serde_json::json!({"document": {"id": 2, "title": "B", "author_names": ["Y"]}}),
+            serde_json::json!({"document": {"id": 3, "title": "C"}}),
+        ];
+        let results = parse_typesense_hits(&hits);
+        assert_eq!(results.len(), 3);
+        assert_eq!(results[0].title.as_deref(), Some("A"));
+        assert_eq!(results[1].title.as_deref(), Some("B"));
+        assert_eq!(results[2].title.as_deref(), Some("C"));
+    }
+
+    #[test]
+    fn typesense_empty_hits() {
+        let results = parse_typesense_hits(&[]);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn typesense_hit_fields_default_to_none() {
+        let hits = vec![serde_json::json!({
+            "document": {"id": 1, "title": "T"}
+        })];
+        let results = parse_typesense_hits(&hits);
+        assert!(results[0].description.is_none());
+        assert!(results[0].publisher.is_none());
+        assert!(results[0].isbn.is_none());
+        assert!(results[0].cover_data.is_none());
+    }
+
+    // --- normalize_key ---
+
+    #[test]
+    fn normalize_strips_bearer_prefix() {
+        assert_eq!(normalize_key("Bearer abc123"), "abc123");
+    }
+
+    #[test]
+    fn normalize_strips_lowercase_bearer() {
+        assert_eq!(normalize_key("bearer abc123"), "abc123");
+    }
+
+    #[test]
+    fn normalize_leaves_plain_key_unchanged() {
+        assert_eq!(normalize_key("abc123"), "abc123");
+    }
 }

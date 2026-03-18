@@ -15,12 +15,13 @@ pub async fn get_book_metadata(
         .await
 }
 
-/// Lookup info for metadata enrichment (title, isbn_10, isbn_13).
+/// Lookup info for metadata enrichment (title, isbn_10, isbn_13, first_author).
 #[derive(Debug, FromQueryResult)]
 pub struct MetaLookup {
     pub title: Option<String>,
     pub isbn_10: Option<String>,
     pub isbn_13: Option<String>,
+    pub first_author: Option<String>,
 }
 
 pub async fn get_meta_lookup(
@@ -29,7 +30,12 @@ pub async fn get_meta_lookup(
 ) -> Result<Option<MetaLookup>, DbErr> {
     MetaLookup::find_by_statement(Statement::from_sql_and_values(
         DatabaseBackend::Sqlite,
-        "SELECT bm.title, bm.isbn_10, bm.isbn_13 FROM book_metadata bm WHERE bm.book_id = ?",
+        "SELECT bm.title, bm.isbn_10, bm.isbn_13, \
+         (SELECT a.name FROM book_authors ba \
+          JOIN authors a ON a.id = ba.author_id \
+          WHERE ba.book_id = bm.book_id \
+          ORDER BY ba.sort_order LIMIT 1) as first_author \
+         FROM book_metadata bm WHERE bm.book_id = ?",
         [book_id.into()],
     ))
     .one(db)
