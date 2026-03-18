@@ -116,7 +116,7 @@ impl RateLimiters {
     pub fn new() -> Self {
         Self {
             openlibrary: RateLimiter::fixed(Duration::from_secs(1)),
-            googlebooks: RateLimiter::fixed(Duration::from_millis(1500)),
+            googlebooks: RateLimiter::adaptive(Duration::from_millis(1500), Duration::from_secs(30)),
             hardcover: RateLimiter::adaptive(Duration::from_millis(1200), Duration::from_secs(15)),
         }
     }
