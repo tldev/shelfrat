@@ -34,7 +34,7 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci --prefix web
       - name: Frontend tests
-        run: npx vitest run --prefix web
+        run: npx vitest run
         working-directory: web
 
   publish:
