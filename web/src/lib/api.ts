@@ -76,7 +76,7 @@ export function getMe() {
 }
 
 export function getOidcStatus() {
-	return get<{ enabled: boolean }>('/auth/oidc/status');
+	return get<{ enabled: boolean; provider_name?: string }>('/auth/oidc/status');
 }
 
 export function getOidcAuthorize() {

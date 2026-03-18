@@ -11,6 +11,7 @@
 	let loading = $state(false);
 	let oidcEnabled = $state(false);
 	let oidcLoading = $state(false);
+	let oidcProviderName = $state('');
 
 	onMount(async () => {
 		// Check for OIDC callback token in URL fragment
@@ -26,7 +27,7 @@
 				return;
 			} catch {
 				localStorage.removeItem('token');
-				error = 'SSO login failed';
+				error = 'OIDC login failed';
 			}
 		}
 
@@ -34,7 +35,7 @@
 		const params = new URLSearchParams(window.location.search);
 		const oidcError = params.get('error');
 		if (oidcError === 'oidc_failed') {
-			error = 'SSO login failed';
+			error = 'OIDC login failed';
 			history.replaceState(null, '', '/login');
 		} else if (oidcError === 'oidc_no_account') {
 			error = 'No account found. Contact your admin for access.';
@@ -58,6 +59,7 @@
 		try {
 			const oidcStatus = await getOidcStatus();
 			oidcEnabled = oidcStatus.enabled;
+			oidcProviderName = oidcStatus.provider_name || '';
 		} catch {}
 	});
 
@@ -83,7 +85,7 @@
 			const res = await getOidcAuthorize();
 			window.location.href = res.url;
 		} catch (err: any) {
-			error = err.message || 'SSO login failed';
+			error = err.message || 'OIDC login failed';
 			oidcLoading = false;
 		}
 	}
@@ -114,7 +116,7 @@
 		{#if oidcEnabled}
 			<div class="divider"><span>or</span></div>
 			<button class="secondary oidc-btn" onclick={handleOidc} disabled={oidcLoading}>
-				{oidcLoading ? 'redirecting...' : 'sign in with SSO'}
+				{oidcLoading ? 'redirecting...' : `sign in with ${oidcProviderName || 'OIDC'}`}
 			</button>
 		{/if}
 	</div>

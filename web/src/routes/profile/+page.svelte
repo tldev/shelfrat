@@ -1,5 +1,7 @@
 <script lang="ts">
-	import { getAuth, setAuth } from '$lib/auth.svelte';
+	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { getAuth, setAuth, clearAuth } from '$lib/auth.svelte';
 	import { updateUser } from '$lib/api';
 
 	const auth = getAuth();
@@ -12,6 +14,29 @@
 	let saving = $state(false);
 	let message = $state('');
 	let error = $state('');
+	let theme = $state('system');
+
+	onMount(() => {
+		theme = localStorage.getItem('theme') || 'system';
+	});
+
+	function logout() {
+		clearAuth();
+		goto('/login');
+	}
+
+	function applyTheme(value: string) {
+		theme = value;
+		localStorage.setItem('theme', value);
+		if (value === 'dark') {
+			document.documentElement.classList.add('dark');
+		} else if (value === 'light') {
+			document.documentElement.classList.remove('dark');
+		} else {
+			const prefersDark = matchMedia('(prefers-color-scheme: dark)').matches;
+			document.documentElement.classList.toggle('dark', prefersDark);
+		}
+	}
 
 	async function handleSave(e: Event) {
 		e.preventDefault();
@@ -72,6 +97,15 @@
 		<input id="kindle_email" type="email" bind:value={kindleEmail} placeholder="your-kindle@kindle.com" />
 	</div>
 
+	<div class="field">
+		<label for="theme">theme</label>
+		<select id="theme" value={theme} onchange={(e) => applyTheme(e.currentTarget.value)}>
+			<option value="system">system</option>
+			<option value="light">light</option>
+			<option value="dark">dark</option>
+		</select>
+	</div>
+
 	<hr />
 
 	<div class="field">
@@ -94,6 +128,10 @@
 	<button type="submit" disabled={saving}>
 		{saving ? 'saving...' : 'save changes'}
 	</button>
+
+	<hr />
+
+	<button class="logout-btn" type="button" onclick={logout}>logout</button>
 </form>
 
 <style>
@@ -126,5 +164,18 @@
 
 	input:disabled {
 		opacity: 0.5;
+	}
+
+	.logout-btn {
+		background: transparent;
+		border: 1px solid var(--border);
+		color: var(--fg-muted);
+		cursor: pointer;
+		align-self: flex-start;
+	}
+
+	.logout-btn:hover {
+		color: var(--fg);
+		border-color: var(--fg-muted);
 	}
 </style>

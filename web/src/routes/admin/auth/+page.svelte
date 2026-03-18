@@ -65,6 +65,7 @@
 		try {
 			const oidcSettings: Record<string, string> = {
 				app_url: settings.app_url || '',
+				oidc_provider_name: settings.oidc_provider_name || '',
 				oidc_issuer_url: settings.oidc_issuer_url || '',
 				oidc_client_id: settings.oidc_client_id || '',
 				oidc_auto_register: settings.oidc_auto_register || 'true',
@@ -101,13 +102,18 @@
 		<p class="status">loading...</p>
 	{:else}
 		<section>
-			<h2>SSO / OIDC</h2>
+			<h2>OIDC</h2>
 			<div class="oidc-layout">
 				<form class="settings-form" onsubmit={handleSave}>
 					<div class="field">
 						<label for="app_url">app URL</label>
 						<input id="app_url" type="url" bind:value={settings.app_url} placeholder="https://shelf.example.com" />
 						<span class="hint">public URL of this app (used for OIDC redirect)</span>
+					</div>
+					<div class="field">
+						<label for="oidc_provider_name">provider name</label>
+						<input id="oidc_provider_name" type="text" bind:value={settings.oidc_provider_name} placeholder="e.g. Authentik, Keycloak" />
+						<span class="hint">shown on the login button as "sign in with [name]"</span>
 					</div>
 					<div class="field">
 						<label for="oidc_issuer_url">issuer URL</label>
@@ -128,7 +134,7 @@
 							<option value="true">yes</option>
 							<option value="false">no</option>
 						</select>
-						<span class="hint">create accounts automatically on first SSO login</span>
+						<span class="hint">create accounts automatically on first OIDC login</span>
 					</div>
 					<div class="field-group">
 						<h3>role mapping</h3>

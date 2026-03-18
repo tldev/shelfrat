@@ -3,10 +3,9 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { initAuth, getAuth, clearAuth } from '$lib/auth.svelte';
+	import { initAuth, getAuth } from '$lib/auth.svelte';
 	import { checkSetup } from '$lib/api';
 	import ShelfRat from '$lib/ShelfRat.svelte';
-	import ThemeToggle from '$lib/ThemeToggle.svelte';
 
 	let { children } = $props();
 	let ready = $state(false);
@@ -33,10 +32,6 @@
 		ready = true;
 	});
 
-	function logout() {
-		clearAuth();
-		goto('/login');
-	}
 </script>
 
 {#if ready || ['/login', '/setup'].some((p) => page.url.pathname.startsWith(p)) || page.url.pathname.startsWith('/invite')}
@@ -46,12 +41,16 @@
 				<a href="/" class="logo"><ShelfRat /></a>
 				<nav>
 					<a href="/" class:active={page.url.pathname === '/'}>library</a>
-					<a href="/profile" class:active={page.url.pathname === '/profile'}>profile</a>
 					{#if auth.isAdmin}
 						<a href="/admin" class:active={page.url.pathname.startsWith('/admin')}>admin</a>
 					{/if}
-					<button class="nav-btn" onclick={logout}>logout</button>
-				<ThemeToggle />
+					<a href="/profile" class="profile-link" class:active={page.url.pathname === '/profile'}>
+						<svg class="profile-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+							<circle cx="8" cy="5.5" r="3" />
+							<path d="M2 14.5c0-3 2.7-5 6-5s6 2 6 5" />
+						</svg>
+						{auth.user?.display_name || auth.user?.username || 'profile'}
+					</a>
 				</nav>
 			</div>
 		</header>
@@ -101,22 +100,21 @@
 		color: var(--fg);
 	}
 
-	.nav-btn {
-		font-size: 0.8rem;
-		padding: 0.25rem 0.5rem;
-		background: transparent;
-		color: var(--fg-muted);
-		border: none;
-	}
-
-	.nav-btn:hover {
-		color: var(--fg);
-	}
-
 	main {
 		max-width: var(--max-w);
 		margin: 0 auto;
 		padding: 2rem 1.5rem;
+	}
+
+	.profile-link {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+	}
+
+	.profile-icon {
+		width: 1rem;
+		height: 1rem;
 	}
 
 	@media (max-width: 640px) {
@@ -129,10 +127,6 @@
 		}
 
 		nav a {
-			font-size: 0.75rem;
-		}
-
-		.nav-btn {
 			font-size: 0.75rem;
 		}
 

@@ -25,6 +25,7 @@ const CONFIGURABLE_KEYS: &[&str] = &[
     "oidc_auto_register",
     "oidc_admin_claim",
     "oidc_admin_value",
+    "oidc_provider_name",
     "hardcover_api_key",
     "metadata_providers",
 ];

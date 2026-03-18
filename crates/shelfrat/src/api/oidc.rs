@@ -76,6 +76,7 @@ struct OidcConfig {
     auto_register: bool,
     admin_claim: String,
     admin_value: String,
+    provider_name: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -104,6 +105,7 @@ async fn get_oidc_config(db: &sea_orm::DatabaseConnection) -> Result<Option<Oidc
             "oidc_auto_register" => config.auto_register = row.value != "false",
             "oidc_admin_claim" => config.admin_claim = row.value.clone(),
             "oidc_admin_value" => config.admin_value = row.value.clone(),
+            "oidc_provider_name" => config.provider_name = row.value.clone(),
             _ => {}
         }
     }
@@ -177,7 +179,13 @@ fn resolve_oidc_role(config: &OidcConfig, claims: &IdTokenClaims) -> Option<Stri
 
 async fn oidc_status(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
     let config = get_oidc_config(&state.db).await?;
-    Ok(Json(json!({ "enabled": config.is_some() })))
+    let provider_name = config
+        .as_ref()
+        .map(|c| c.provider_name.clone())
+        .filter(|n| !n.is_empty());
+    Ok(Json(
+        json!({ "enabled": config.is_some(), "provider_name": provider_name }),
+    ))
 }
 
 async fn oidc_authorize(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
