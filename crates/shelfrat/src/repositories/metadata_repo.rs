@@ -282,6 +282,129 @@ pub async fn books_needing_metadata(
     Ok(rows.into_iter().map(|r| r.id).collect())
 }
 
+/// Import scanned files into the database.
+/// This remains using raw SqlitePool because it needs transaction support and bulk operations.
+pub async fn import_scanned_files(
+    pool: &sqlx::SqlitePool,
+    files: &[crate::scanner::ScannedFile],
+    mark_missing: bool,
+) -> Result<crate::scanner::ImportResult, crate::scanner::ScanError> {
+    let mut imported = 0u64;
+    let skipped = 0u64;
+    let mut updated = 0u64;
+
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
+
+    for file in files {
+        let file_path_str = file.path.to_string_lossy().to_string();
+
+        let existing_by_path =
+            sqlx::query_scalar::<_, i64>("SELECT id FROM books WHERE file_path = ?")
+                .bind(&file_path_str)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
+
+        if let Some(book_id) = existing_by_path {
+            sqlx::query(
+                "UPDATE books SET last_seen_at = datetime('now'), missing = 0, file_hash = ?, file_size_bytes = ? WHERE id = ?",
+            )
+            .bind(&file.hash)
+            .bind(file.size_bytes as i64)
+            .bind(book_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
+            updated += 1;
+            continue;
+        }
+
+        let existing_by_hash =
+            sqlx::query_scalar::<_, i64>("SELECT id FROM books WHERE file_hash = ?")
+                .bind(&file.hash)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
+
+        if let Some(book_id) = existing_by_hash {
+            sqlx::query(
+                "UPDATE books SET file_path = ?, file_size_bytes = ?, last_seen_at = datetime('now'), missing = 0 WHERE id = ?",
+            )
+            .bind(&file_path_str)
+            .bind(file.size_bytes as i64)
+            .bind(book_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
+            updated += 1;
+            continue;
+        }
+
+        let book_id = sqlx::query_scalar::<_, i64>(
+            "INSERT INTO books (file_path, file_hash, file_format, file_size_bytes) VALUES (?, ?, ?, ?) RETURNING id",
+        )
+        .bind(&file_path_str)
+        .bind(&file.hash)
+        .bind(&file.format)
+        .bind(file.size_bytes as i64)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
+
+        let title = file
+            .path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("Unknown");
+        sqlx::query("INSERT INTO book_metadata (book_id, title) VALUES (?, ?)")
+            .bind(book_id)
+            .bind(title)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
+
+        imported += 1;
+    }
+
+    if mark_missing && !files.is_empty() {
+        let seen_paths: Vec<String> = files
+            .iter()
+            .map(|f| f.path.to_string_lossy().to_string())
+            .collect();
+        let placeholders = seen_paths.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let query = format!(
+            "UPDATE books SET missing = 1 WHERE missing = 0 AND file_path NOT IN ({placeholders})"
+        );
+        let mut q = sqlx::query(&query);
+        for p in &seen_paths {
+            q = q.bind(p);
+        }
+        q.execute(&mut *tx)
+            .await
+            .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
+    }
+
+    tx.commit()
+        .await
+        .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
+
+    if imported > 0 {
+        if let Err(e) = crate::fts::rebuild_fts_index(pool).await {
+            tracing::warn!("FTS rebuild after scan failed: {e}");
+        }
+    }
+
+    Ok(crate::scanner::ImportResult {
+        imported,
+        updated,
+        skipped,
+        total_scanned: files.len() as u64,
+    })
+}
+
 /// Save a cover image to disk and return the full path.
 pub fn save_cover(
     book_id: i64,
@@ -439,127 +562,4 @@ mod tests {
         assert_eq!(data, read_back);
         let _ = std::fs::remove_dir_all(&dir);
     }
-}
-
-/// Import scanned files into the database.
-/// This remains using raw SqlitePool because it needs transaction support and bulk operations.
-pub async fn import_scanned_files(
-    pool: &sqlx::SqlitePool,
-    files: &[crate::scanner::ScannedFile],
-    mark_missing: bool,
-) -> Result<crate::scanner::ImportResult, crate::scanner::ScanError> {
-    let mut imported = 0u64;
-    let skipped = 0u64;
-    let mut updated = 0u64;
-
-    let mut tx = pool
-        .begin()
-        .await
-        .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
-
-    for file in files {
-        let file_path_str = file.path.to_string_lossy().to_string();
-
-        let existing_by_path =
-            sqlx::query_scalar::<_, i64>("SELECT id FROM books WHERE file_path = ?")
-                .bind(&file_path_str)
-                .fetch_optional(&mut *tx)
-                .await
-                .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
-
-        if let Some(book_id) = existing_by_path {
-            sqlx::query(
-                "UPDATE books SET last_seen_at = datetime('now'), missing = 0, file_hash = ?, file_size_bytes = ? WHERE id = ?",
-            )
-            .bind(&file.hash)
-            .bind(file.size_bytes as i64)
-            .bind(book_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
-            updated += 1;
-            continue;
-        }
-
-        let existing_by_hash =
-            sqlx::query_scalar::<_, i64>("SELECT id FROM books WHERE file_hash = ?")
-                .bind(&file.hash)
-                .fetch_optional(&mut *tx)
-                .await
-                .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
-
-        if let Some(book_id) = existing_by_hash {
-            sqlx::query(
-                "UPDATE books SET file_path = ?, file_size_bytes = ?, last_seen_at = datetime('now'), missing = 0 WHERE id = ?",
-            )
-            .bind(&file_path_str)
-            .bind(file.size_bytes as i64)
-            .bind(book_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
-            updated += 1;
-            continue;
-        }
-
-        let book_id = sqlx::query_scalar::<_, i64>(
-            "INSERT INTO books (file_path, file_hash, file_format, file_size_bytes) VALUES (?, ?, ?, ?) RETURNING id",
-        )
-        .bind(&file_path_str)
-        .bind(&file.hash)
-        .bind(&file.format)
-        .bind(file.size_bytes as i64)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
-
-        let title = file
-            .path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("Unknown");
-        sqlx::query("INSERT INTO book_metadata (book_id, title) VALUES (?, ?)")
-            .bind(book_id)
-            .bind(title)
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
-
-        imported += 1;
-    }
-
-    if mark_missing && !files.is_empty() {
-        let seen_paths: Vec<String> = files
-            .iter()
-            .map(|f| f.path.to_string_lossy().to_string())
-            .collect();
-        let placeholders = seen_paths.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-        let query = format!(
-            "UPDATE books SET missing = 1 WHERE missing = 0 AND file_path NOT IN ({placeholders})"
-        );
-        let mut q = sqlx::query(&query);
-        for p in &seen_paths {
-            q = q.bind(p);
-        }
-        q.execute(&mut *tx)
-            .await
-            .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
-    }
-
-    tx.commit()
-        .await
-        .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
-
-    if imported > 0 {
-        if let Err(e) = crate::fts::rebuild_fts_index(pool).await {
-            tracing::warn!("FTS rebuild after scan failed: {e}");
-        }
-    }
-
-    Ok(crate::scanner::ImportResult {
-        imported,
-        updated,
-        skipped,
-        total_scanned: files.len() as u64,
-    })
 }

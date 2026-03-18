@@ -117,6 +117,42 @@ impl FromRequestParts<AppState> for AuthUser {
     }
 }
 
+impl FromRequestParts<AppState> for AdminUser {
+    type Rejection = AuthError;
+
+    fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> impl std::future::Future<Output = Result<Self, Self::Rejection>> + Send {
+        let db = state.db.clone();
+        let token = extract_bearer_token(parts).map(|s| s.to_owned());
+
+        async move {
+            let token = token?;
+            let secret = get_or_create_jwt_secret(&db).await?;
+
+            let token_data = decode::<Claims>(
+                &token,
+                &DecodingKey::from_secret(secret.as_bytes()),
+                &Validation::default(),
+            )
+            .map_err(|e| AuthError::InvalidToken(e.to_string()))?;
+
+            let user = AuthUser {
+                id: token_data.claims.sub,
+                username: token_data.claims.username,
+                role: token_data.claims.role,
+            };
+
+            if user.role != "admin" {
+                return Err(AuthError::Forbidden);
+            }
+
+            Ok(AdminUser(user))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -195,41 +231,5 @@ mod tests {
         let parts = make_parts(Some("Bearertoken"));
         let result = extract_bearer_token(&parts);
         assert!(matches!(result, Err(AuthError::MissingToken)));
-    }
-}
-
-impl FromRequestParts<AppState> for AdminUser {
-    type Rejection = AuthError;
-
-    fn from_request_parts(
-        parts: &mut Parts,
-        state: &AppState,
-    ) -> impl std::future::Future<Output = Result<Self, Self::Rejection>> + Send {
-        let db = state.db.clone();
-        let token = extract_bearer_token(parts).map(|s| s.to_owned());
-
-        async move {
-            let token = token?;
-            let secret = get_or_create_jwt_secret(&db).await?;
-
-            let token_data = decode::<Claims>(
-                &token,
-                &DecodingKey::from_secret(secret.as_bytes()),
-                &Validation::default(),
-            )
-            .map_err(|e| AuthError::InvalidToken(e.to_string()))?;
-
-            let user = AuthUser {
-                id: token_data.claims.sub,
-                username: token_data.claims.username,
-                role: token_data.claims.role,
-            };
-
-            if user.role != "admin" {
-                return Err(AuthError::Forbidden);
-            }
-
-            Ok(AdminUser(user))
-        }
     }
 }

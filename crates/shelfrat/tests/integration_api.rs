@@ -105,7 +105,7 @@ async fn create_member_and_login(app: &axum::Router, admin_token: &str) -> (Stri
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri(&format!("/api/v1/users/register/{invite_token}"))
+                .uri(format!("/api/v1/users/register/{invite_token}"))
                 .header("Content-Type", "application/json")
                 .body(Body::from(
                     json!({
@@ -763,7 +763,7 @@ async fn users_register_with_valid_invite() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri(&format!("/api/v1/users/register/{invite_token}"))
+                .uri(format!("/api/v1/users/register/{invite_token}"))
                 .header("Content-Type", "application/json")
                 .body(Body::from(
                     json!({
@@ -819,7 +819,7 @@ async fn users_get_as_admin_returns_user() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(&format!("/api/v1/users/{member_id}"))
+                .uri(format!("/api/v1/users/{member_id}"))
                 .header("Authorization", format!("Bearer {admin_token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -842,7 +842,7 @@ async fn users_get_self_returns_own_info() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(&format!("/api/v1/users/{member_id}"))
+                .uri(format!("/api/v1/users/{member_id}"))
                 .header("Authorization", format!("Bearer {member_token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -881,7 +881,7 @@ async fn users_get_other_as_non_admin_returns_403() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(&format!("/api/v1/users/{admin_id}"))
+                .uri(format!("/api/v1/users/{admin_id}"))
                 .header("Authorization", format!("Bearer {member_token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -903,7 +903,7 @@ async fn users_update_own_fields() {
         .oneshot(
             Request::builder()
                 .method("PUT")
-                .uri(&format!("/api/v1/users/{member_id}"))
+                .uri(format!("/api/v1/users/{member_id}"))
                 .header("Content-Type", "application/json")
                 .header("Authorization", format!("Bearer {member_token}"))
                 .body(Body::from(
@@ -936,7 +936,7 @@ async fn users_role_change_requires_admin() {
         .oneshot(
             Request::builder()
                 .method("PUT")
-                .uri(&format!("/api/v1/users/{member_id}"))
+                .uri(format!("/api/v1/users/{member_id}"))
                 .header("Content-Type", "application/json")
                 .header("Authorization", format!("Bearer {member_token}"))
                 .body(Body::from(
@@ -964,7 +964,7 @@ async fn users_delete_as_admin_revokes_user() {
         .oneshot(
             Request::builder()
                 .method("DELETE")
-                .uri(&format!("/api/v1/users/{member_id}"))
+                .uri(format!("/api/v1/users/{member_id}"))
                 .header("Authorization", format!("Bearer {admin_token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -1003,7 +1003,7 @@ async fn users_delete_self_returns_400() {
         .oneshot(
             Request::builder()
                 .method("DELETE")
-                .uri(&format!("/api/v1/users/{admin_id}"))
+                .uri(format!("/api/v1/users/{admin_id}"))
                 .header("Authorization", format!("Bearer {admin_token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -1539,7 +1539,7 @@ async fn admin_can_change_member_role() {
         .oneshot(
             Request::builder()
                 .method("PUT")
-                .uri(&format!("/api/v1/users/{member_id}"))
+                .uri(format!("/api/v1/users/{member_id}"))
                 .header("Content-Type", "application/json")
                 .header("Authorization", format!("Bearer {admin_token}"))
                 .body(Body::from(
@@ -1583,7 +1583,7 @@ async fn admin_cannot_change_own_role() {
         .oneshot(
             Request::builder()
                 .method("PUT")
-                .uri(&format!("/api/v1/users/{admin_id}"))
+                .uri(format!("/api/v1/users/{admin_id}"))
                 .header("Content-Type", "application/json")
                 .header("Authorization", format!("Bearer {admin_token}"))
                 .body(Body::from(
@@ -1631,7 +1631,7 @@ async fn users_delete_as_non_admin_returns_403() {
         .oneshot(
             Request::builder()
                 .method("DELETE")
-                .uri(&format!("/api/v1/users/{admin_id}"))
+                .uri(format!("/api/v1/users/{admin_id}"))
                 .header("Authorization", format!("Bearer {member_token}"))
                 .body(Body::empty())
                 .unwrap(),
