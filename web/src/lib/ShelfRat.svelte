@@ -1,4 +1,4 @@
-<span class="shelfrat">Shelf<b>Rat</b></span>
+<span class="shelfrat">shelf<b>rat</b></span>
 
 <style>
 	.shelfrat {
