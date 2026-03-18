@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { getLibraryInfo, getSettings, updateSettings, triggerScan, rebuildIndex, getProviders, updateProviders, testHardcoverKey, resetProvider, type ProviderInfo } from '$lib/api';
+	import LockedField from '$lib/LockedField.svelte';
 
 	let libraryInfo: any = $state(null);
 	let settings: Record<string, string> = $state({});
+	let envLocked: string[] = $state([]);
 	let loading = $state(true);
 	let scanning = $state(false);
 	let reindexing = $state(false);
@@ -35,6 +37,7 @@
 			]);
 			libraryInfo = info;
 			settings = settingsRes.settings;
+			envLocked = settingsRes.env_locked;
 			providers = providersRes.providers;
 		} catch (err) {
 			console.error(err);
@@ -206,28 +209,25 @@
 						{/if}
 					</div>
 
-					<div class="field library-path-field">
-						<label for="library_path">library path</label>
-						<div class="path-row">
-							<input id="library_path" type="text" bind:value={settings.library_path} placeholder="/path/to/books" />
+					<div class="library-path-field">
+						<LockedField key="library_path" label="library path" placeholder="/path/to/books" bind:value={settings.library_path} {envLocked} />
+						{#if !envLocked.includes('library_path')}
 							<button class="secondary" onclick={handleSaveLibraryPath} disabled={savingPath}>
 								{savingPath ? 'saving...' : 'save'}
 							</button>
-						</div>
+						{/if}
 						{#if pathMessage}
 							<p class="result">{pathMessage}</p>
 						{/if}
 					</div>
 
-					<div class="field library-path-field">
-						<label for="metadata_retry_hours">metadata retry (hours)</label>
-						<div class="path-row">
-							<input id="metadata_retry_hours" type="number" min="0" bind:value={settings.metadata_retry_hours} placeholder="24" />
+					<div class="library-path-field">
+						<LockedField key="metadata_retry_hours" label="metadata retry (hours)" type="number" placeholder="24" hint="skip re-fetching metadata from providers within this window" bind:value={settings.metadata_retry_hours} {envLocked} />
+						{#if !envLocked.includes('metadata_retry_hours')}
 							<button class="secondary" onclick={handleSaveRetryHours} disabled={savingRetry}>
 								{savingRetry ? 'saving...' : 'save'}
 							</button>
-						</div>
-						<span class="hint">skip re-fetching metadata from providers within this window</span>
+						{/if}
 						{#if retryMessage}
 							<p class="result">{retryMessage}</p>
 						{/if}
@@ -313,13 +313,17 @@
 				{#if providers.find((p) => p.name === 'hardcover')?.key_configured}
 					<span class="badge configured">configured</span>
 				{/if}
-				<div class="key-row">
-					<input type="password" bind:value={apiKey} placeholder="Bearer eyJhb..." />
-					<button class="secondary" onclick={handleTestKey} disabled={testingKey || !apiKey.trim()}>
-						{testingKey ? 'testing...' : 'test & save'}
-					</button>
-				</div>
-				<span class="hint">validated before saving — <a href="https://hardcover.app/account/api" target="_blank" rel="noopener">get your API key</a></span>
+				{#if envLocked.includes('hardcover_api_key')}
+					<span class="hint env-hint">set by environment variable SHELFRAT_HARDCOVER_API_KEY</span>
+				{:else}
+					<div class="key-row">
+						<input type="password" bind:value={apiKey} placeholder="Bearer eyJhb..." />
+						<button class="secondary" onclick={handleTestKey} disabled={testingKey || !apiKey.trim()}>
+							{testingKey ? 'testing...' : 'test & save'}
+						</button>
+					</div>
+					<span class="hint">validated before saving — <a href="https://hardcover.app/account/api" target="_blank" rel="noopener">get your API key</a></span>
+				{/if}
 				{#if keyMessage}
 					<p class="result">{keyMessage}</p>
 				{/if}
@@ -387,15 +391,6 @@
 
 	.library-path-field {
 		max-width: var(--max-w-narrow);
-	}
-
-	.path-row {
-		display: flex;
-		gap: 0.5rem;
-	}
-
-	.path-row input {
-		flex: 1;
 	}
 
 	.provider-list {

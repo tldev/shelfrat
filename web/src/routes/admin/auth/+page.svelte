@@ -2,8 +2,10 @@
 	import { onMount } from 'svelte';
 	import { getSettings, updateSettings } from '$lib/api';
 	import InfoBox from '$lib/InfoBox.svelte';
+	import LockedField from '$lib/LockedField.svelte';
 
 	let settings: Record<string, string> = $state({});
+	let envLocked: string[] = $state([]);
 	let loading = $state(true);
 	let saving = $state(false);
 	let message = $state('');
@@ -40,6 +42,7 @@
 		try {
 			const res = await getSettings();
 			settings = res.settings;
+			envLocked = res.env_locked;
 			if (!settings.app_url) {
 				settings.app_url = window.location.origin;
 			}
@@ -85,51 +88,25 @@
 		<h2>OIDC</h2>
 		<div class="oidc-layout">
 			<form class="settings-form" onsubmit={handleSave}>
-				<div class="field">
-					<label for="app_url">app URL</label>
-					<input id="app_url" type="url" bind:value={settings.app_url} placeholder="https://shelf.example.com" />
-					<span class="hint">public URL of this app (used for OIDC redirect)</span>
-				</div>
-				<div class="field">
-					<label for="oidc_provider_name">provider name</label>
-					<input id="oidc_provider_name" type="text" bind:value={settings.oidc_provider_name} placeholder="e.g. Authentik, Keycloak" />
-					<span class="hint">shown on the login button as "sign in with [name]"</span>
-				</div>
-				<div class="field">
-					<label for="oidc_issuer_url">issuer URL</label>
-					<input id="oidc_issuer_url" type="url" bind:value={settings.oidc_issuer_url} placeholder="https://auth.example.com/realms/main" />
-					<span class="hint">OIDC provider discovery endpoint base</span>
-				</div>
-				<div class="field">
-					<label for="oidc_client_id">client ID</label>
-					<input id="oidc_client_id" type="text" bind:value={settings.oidc_client_id} />
-				</div>
-				<div class="field">
-					<label for="oidc_client_secret">client secret</label>
-					<input id="oidc_client_secret" type="password" bind:value={settings.oidc_client_secret} placeholder="••••••••" />
-				</div>
-				<div class="field">
-					<label for="oidc_auto_register">auto-register new users</label>
-					<select id="oidc_auto_register" bind:value={settings.oidc_auto_register}>
-						<option value="true">yes</option>
-						<option value="false">no</option>
-					</select>
-					<span class="hint">create accounts automatically on first OIDC login</span>
-				</div>
+				<LockedField key="app_url" label="app URL" type="url" placeholder="https://shelf.example.com" hint="public URL of this app (used for OIDC redirect)" bind:value={settings.app_url} {envLocked} />
+				<LockedField key="oidc_provider_name" label="provider name" placeholder="e.g. Authentik, Keycloak" hint='shown on the login button as "sign in with [name]"' bind:value={settings.oidc_provider_name} {envLocked} />
+				<LockedField key="oidc_issuer_url" label="issuer URL" type="url" placeholder="https://auth.example.com/realms/main" hint="OIDC provider discovery endpoint base" bind:value={settings.oidc_issuer_url} {envLocked} />
+				<LockedField key="oidc_client_id" label="client ID" bind:value={settings.oidc_client_id} {envLocked} />
+				<LockedField key="oidc_client_secret" label="client secret" type="password" placeholder="••••••••" bind:value={settings.oidc_client_secret} {envLocked} />
+				<LockedField key="oidc_auto_register" label="auto-register new users" hint="create accounts automatically on first OIDC login" bind:value={settings.oidc_auto_register} {envLocked}
+					options={[
+						{ value: 'true', label: 'yes' },
+						{ value: 'false', label: 'no' },
+					]}
+				/>
 				<div class="field-group">
 					<h3>role mapping</h3>
 					<span class="hint">grant admin based on an OIDC claim. role is synced on every login.</span>
-					<div class="field-row">
-						<div class="field">
-							<label for="oidc_admin_claim">claim name</label>
-							<input id="oidc_admin_claim" type="text" bind:value={settings.oidc_admin_claim} placeholder="groups" />
-						</div>
-						<div class="field">
-							<label for="oidc_admin_value">admin value</label>
-							<input id="oidc_admin_value" type="text" bind:value={settings.oidc_admin_value} placeholder="shelfrat-admin" />
-						</div>
-					</div>
-					<span class="hint">leave admin value blank to disable role mapping</span>
+					<LockedField key="oidc_admin_claim" label="claim name" placeholder="groups" bind:value={settings.oidc_admin_claim} {envLocked} />
+					<LockedField key="oidc_admin_value" label="admin value" placeholder="shelfrat-admin" bind:value={settings.oidc_admin_value} {envLocked} />
+					{#if !envLocked.includes('oidc_admin_value')}
+						<span class="hint">leave admin value blank to disable role mapping</span>
+					{/if}
 				</div>
 				{#if message}
 					<p class="result">{message}</p>
@@ -229,10 +206,6 @@
 	.field-row {
 		display: flex;
 		gap: 0.75rem;
-	}
-
-	.field-row .field {
-		flex: 1;
 	}
 
 	@media (max-width: 640px) {

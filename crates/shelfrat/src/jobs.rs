@@ -5,8 +5,9 @@ use sea_orm::DatabaseConnection;
 use sqlx::SqlitePool;
 use tokio::sync::mpsc;
 
+use crate::config;
 use crate::metaqueue::MetaQueue;
-use crate::repositories::{config_repo, job_repo};
+use crate::repositories::job_repo;
 use crate::services::scan_service;
 
 /// Known job names.
@@ -111,7 +112,7 @@ async fn scheduler_loop(
     }
 }
 
-/// Read cadences from app_config, cached for 30 seconds.
+/// Read cadences via config module (env > DB), cached for 30 seconds.
 async fn get_cadences(
     db: &DatabaseConnection,
     cache: &mut Option<(Instant, std::collections::HashMap<String, u64>)>,
@@ -122,18 +123,15 @@ async fn get_cadences(
         }
     }
 
-    let rows = config_repo::get_by_prefix(db, "job_cadence:")
-        .await
-        .unwrap_or_default();
-
-    let map: std::collections::HashMap<String, u64> = rows
-        .into_iter()
-        .filter_map(|r| {
-            let name = r.key.strip_prefix("job_cadence:")?.to_string();
-            let secs = r.value.parse::<u64>().ok()?;
-            Some((name, secs))
-        })
-        .collect();
+    let mut map = std::collections::HashMap::new();
+    for &(job_name, _) in KNOWN_JOBS {
+        let key = format!("job_cadence:{job_name}");
+        if let Some(val) = config::get(db, &key).await {
+            if let Ok(secs) = val.parse::<u64>() {
+                map.insert(job_name.to_string(), secs);
+            }
+        }
+    }
 
     *cache = Some((Instant::now(), map.clone()));
     map

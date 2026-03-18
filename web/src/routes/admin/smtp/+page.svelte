@@ -2,8 +2,10 @@
 	import { onMount } from 'svelte';
 	import { getSettings, updateSettings } from '$lib/api';
 	import InfoBox from '$lib/InfoBox.svelte';
+	import LockedField from '$lib/LockedField.svelte';
 
 	let settings: Record<string, string> = $state({});
+	let envLocked: string[] = $state([]);
 	let loading = $state(true);
 	let saving = $state(false);
 	let message = $state('');
@@ -17,6 +19,7 @@
 		try {
 			const res = await getSettings();
 			settings = res.settings;
+			envLocked = res.env_locked;
 		} catch (err) {
 			console.error(err);
 		} finally {
@@ -46,34 +49,18 @@
 		<h2>smtp settings</h2>
 		<div class="smtp-layout">
 			<form class="settings-form" onsubmit={handleSave}>
-				<div class="field">
-					<label for="smtp_host">smtp host</label>
-					<input id="smtp_host" type="text" bind:value={settings.smtp_host} placeholder="smtp.gmail.com" />
-				</div>
-				<div class="field">
-					<label for="smtp_port">smtp port</label>
-					<input id="smtp_port" type="text" bind:value={settings.smtp_port} placeholder="587" />
-				</div>
-				<div class="field">
-					<label for="smtp_user">smtp user</label>
-					<input id="smtp_user" type="text" bind:value={settings.smtp_user} />
-				</div>
-				<div class="field">
-					<label for="smtp_password">smtp password</label>
-					<input id="smtp_password" type="password" bind:value={settings.smtp_password} placeholder="••••••••" />
-				</div>
-				<div class="field">
-					<label for="smtp_from">from email</label>
-					<input id="smtp_from" type="email" bind:value={settings.smtp_from} />
-				</div>
-				<div class="field">
-					<label for="smtp_encryption">encryption</label>
-					<select id="smtp_encryption" bind:value={settings.smtp_encryption}>
-						<option value="tls">TLS</option>
-						<option value="starttls">STARTTLS</option>
-						<option value="none">None</option>
-					</select>
-				</div>
+				<LockedField key="smtp_host" label="smtp host" placeholder="smtp.gmail.com" bind:value={settings.smtp_host} {envLocked} />
+				<LockedField key="smtp_port" label="smtp port" placeholder="587" bind:value={settings.smtp_port} {envLocked} />
+				<LockedField key="smtp_user" label="smtp user" bind:value={settings.smtp_user} {envLocked} />
+				<LockedField key="smtp_password" label="smtp password" type="password" placeholder="••••••••" bind:value={settings.smtp_password} {envLocked} />
+				<LockedField key="smtp_from" label="from email" type="email" bind:value={settings.smtp_from} {envLocked} />
+				<LockedField key="smtp_encryption" label="encryption" bind:value={settings.smtp_encryption} {envLocked}
+					options={[
+						{ value: 'tls', label: 'TLS' },
+						{ value: 'starttls', label: 'STARTTLS' },
+						{ value: 'none', label: 'None' },
+					]}
+				/>
 				{#if message}
 					<p class="result">{message}</p>
 				{/if}

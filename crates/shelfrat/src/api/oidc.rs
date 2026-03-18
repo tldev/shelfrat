@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::auth::Claims;
+use crate::config;
 use crate::error::AppError;
 use crate::repositories::{audit_repo, config_repo, user_repo};
 use crate::state::AppState;
@@ -90,41 +91,39 @@ struct CallbackParams {
 // --- Helpers ---
 
 async fn get_oidc_config(db: &sea_orm::DatabaseConnection) -> Result<Option<OidcConfig>, AppError> {
-    let rows = config_repo::get_by_prefix(db, "oidc_").await?;
+    let issuer_url = config::get(db, "oidc_issuer_url").await.unwrap_or_default();
+    let client_id = config::get(db, "oidc_client_id").await.unwrap_or_default();
 
-    let mut config = OidcConfig {
-        auto_register: true, // default
-        ..Default::default()
-    };
-
-    for row in &rows {
-        match row.key.as_str() {
-            "oidc_issuer_url" => config.issuer_url = row.value.clone(),
-            "oidc_client_id" => config.client_id = row.value.clone(),
-            "oidc_client_secret" => config.client_secret = row.value.clone(),
-            "oidc_auto_register" => config.auto_register = row.value != "false",
-            "oidc_admin_claim" => config.admin_claim = row.value.clone(),
-            "oidc_admin_value" => config.admin_value = row.value.clone(),
-            "oidc_provider_name" => config.provider_name = row.value.clone(),
-            _ => {}
-        }
-    }
-
-    // Default claim name
-    if config.admin_claim.is_empty() {
-        config.admin_claim = "groups".to_string();
-    }
-
-    if config.issuer_url.is_empty() || config.client_id.is_empty() {
+    if issuer_url.is_empty() || client_id.is_empty() {
         return Ok(None);
     }
 
-    Ok(Some(config))
+    Ok(Some(OidcConfig {
+        issuer_url,
+        client_id,
+        client_secret: config::get(db, "oidc_client_secret")
+            .await
+            .unwrap_or_default(),
+        auto_register: config::get(db, "oidc_auto_register")
+            .await
+            .map(|v| v != "false")
+            .unwrap_or(true),
+        admin_claim: config::get(db, "oidc_admin_claim")
+            .await
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| "groups".to_string()),
+        admin_value: config::get(db, "oidc_admin_value")
+            .await
+            .unwrap_or_default(),
+        provider_name: config::get(db, "oidc_provider_name")
+            .await
+            .unwrap_or_default(),
+    }))
 }
 
 async fn get_app_url(db: &sea_orm::DatabaseConnection) -> Result<String, AppError> {
-    config_repo::get(db, "app_url")
-        .await?
+    config::get(db, "app_url")
+        .await
         .ok_or(AppError::BadRequest("app_url not configured".into()))
 }
 

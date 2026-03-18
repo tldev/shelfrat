@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { getJobs, triggerJob, getJobRuns, updateJobCadence } from '$lib/api';
+	import { getJobs, getSettings, triggerJob, getJobRuns, updateJobCadence } from '$lib/api';
 
 	let jobs: any[] = $state([]);
+	let envLocked: string[] = $state([]);
 	let loading = $state(true);
 	let runningJobs: Record<string, boolean> = $state({});
 	let runMessages: Record<string, string> = $state({});
@@ -15,11 +16,21 @@
 	let pollInterval: ReturnType<typeof setInterval> | null = null;
 
 	onMount(() => {
-		loadJobs();
+		loadInitial();
 		return () => {
 			if (pollInterval) clearInterval(pollInterval);
 		};
 	});
+
+	async function loadInitial() {
+		try {
+			const settingsRes = await getSettings();
+			envLocked = settingsRes.env_locked;
+		} catch {
+			// non-fatal
+		}
+		await loadJobs();
+	}
 
 	async function loadJobs() {
 		try {
@@ -148,11 +159,16 @@
 					type="number"
 					min="0"
 					bind:value={cadenceInputs[job.name]}
+					disabled={envLocked.includes(`job_cadence:${job.name}`)}
 				/>
 				<span class="cadence-label">s ({formatCadence(cadenceInputs[job.name] ?? 0)})</span>
-				<button class="secondary small" onclick={() => handleSaveCadence(job.name)} disabled={savingCadence[job.name]}>
-					{savingCadence[job.name] ? '...' : 'save'}
-				</button>
+				{#if envLocked.includes(`job_cadence:${job.name}`)}
+					<span class="hint env-hint">set by environment variable SHELFRAT_JOB_CADENCE_{job.name.toUpperCase()}</span>
+				{:else}
+					<button class="secondary small" onclick={() => handleSaveCadence(job.name)} disabled={savingCadence[job.name]}>
+						{savingCadence[job.name] ? '...' : 'save'}
+					</button>
+				{/if}
 				{#if cadenceMessages[job.name]}
 					<span class="result">{cadenceMessages[job.name]}</span>
 				{/if}
@@ -255,6 +271,7 @@
 		font-size: 0.7rem;
 		padding: 0.2rem 0.5rem;
 	}
+
 
 	.link {
 		background: none;

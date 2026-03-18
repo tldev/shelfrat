@@ -232,7 +232,7 @@ export function revokeUser(id: number) {
 // --- Admin ---
 
 export function getSettings() {
-	return get<{ settings: Record<string, string> }>('/admin/settings');
+	return get<{ settings: Record<string, string>; env_locked: string[] }>('/admin/settings');
 }
 
 export function updateSettings(settings: Record<string, string>) {

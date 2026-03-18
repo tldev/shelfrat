@@ -5,9 +5,10 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::auth::AdminUser;
+use crate::config;
 use crate::error::AppError;
 use crate::jobs::KNOWN_JOBS;
-use crate::repositories::{config_repo, job_repo};
+use crate::repositories::job_repo;
 use crate::services::admin_service;
 use crate::state::AppState;
 
@@ -27,8 +28,8 @@ async fn list_jobs(
 
     for &(name, description) in KNOWN_JOBS {
         let cadence_key = format!("job_cadence:{name}");
-        let cadence_seconds: u64 = config_repo::get(&state.db, &cadence_key)
-            .await?
+        let cadence_seconds: u64 = config::get(&state.db, &cadence_key)
+            .await
             .and_then(|v| v.parse().ok())
             .unwrap_or(300);
 
