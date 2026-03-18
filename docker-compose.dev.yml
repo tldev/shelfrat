@@ -29,7 +29,6 @@ services:
       RUST_LOG: debug,sqlx=warn,hyper=info,reqwest=info
       HOST: 0.0.0.0
       PORT: "3000"
-      SHELFRAT_SMTP_HOST: smtp.gmail.com
     # Rebuild and restart the server whenever a .rs, .sql, or .toml file changes.
     # -w scopes the watch to directories that matter (ignores web/, .git/, etc).
     # --why logs which file triggered the rebuild.
