@@ -168,3 +168,116 @@ impl From<ScanError> for crate::error::AppError {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    // ── hash_file ──────────────────────────────────────────────────
+
+    #[test]
+    fn hash_file_known_content() {
+        let dir = std::env::temp_dir().join("shelfrat_test_hash");
+        std::fs::create_dir_all(&dir).unwrap();
+        let file_path = dir.join("test.txt");
+        std::fs::write(&file_path, b"hello world").unwrap();
+
+        let result = hash_file(&file_path).unwrap();
+
+        // SHA-256 of "hello world"
+        assert_eq!(
+            result,
+            "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
+        );
+
+        // Clean up.
+        let _ = std::fs::remove_file(&file_path);
+        let _ = std::fs::remove_dir(&dir);
+    }
+
+    #[test]
+    fn hash_file_empty_file() {
+        let dir = std::env::temp_dir().join("shelfrat_test_hash_empty");
+        std::fs::create_dir_all(&dir).unwrap();
+        let file_path = dir.join("empty.txt");
+        std::fs::write(&file_path, b"").unwrap();
+
+        let result = hash_file(&file_path).unwrap();
+
+        // SHA-256 of empty input.
+        assert_eq!(
+            result,
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+
+        let _ = std::fs::remove_file(&file_path);
+        let _ = std::fs::remove_dir(&dir);
+    }
+
+    #[test]
+    fn hash_file_large_content() {
+        // Test with content larger than the 8192-byte buffer.
+        let dir = std::env::temp_dir().join("shelfrat_test_hash_large");
+        std::fs::create_dir_all(&dir).unwrap();
+        let file_path = dir.join("large.bin");
+
+        let data = vec![0xABu8; 20_000];
+        std::fs::write(&file_path, &data).unwrap();
+
+        let result = hash_file(&file_path);
+        assert!(result.is_ok());
+        // Just verify it's a valid 64-char hex string.
+        let hash = result.unwrap();
+        assert_eq!(hash.len(), 64);
+        assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
+
+        let _ = std::fs::remove_file(&file_path);
+        let _ = std::fs::remove_dir(&dir);
+    }
+
+    #[test]
+    fn hash_file_nonexistent_returns_error() {
+        let result = hash_file(Path::new("/tmp/shelfrat_nonexistent_file_xyz"));
+        assert!(result.is_err());
+    }
+
+    // ── ScanError → AppError conversion ────────────────────────────
+
+    #[test]
+    fn scan_error_not_a_directory_becomes_bad_request() {
+        let err = ScanError::NotADirectory(PathBuf::from("/foo/bar"));
+        let app_err: crate::error::AppError = err.into();
+        match app_err {
+            crate::error::AppError::BadRequest(msg) => {
+                assert!(msg.contains("not a directory"));
+                assert!(msg.contains("/foo/bar"));
+            }
+            other => panic!("expected BadRequest, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn scan_error_io_becomes_internal() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied");
+        let err = ScanError::Io(PathBuf::from("/secret"), io_err);
+        let app_err: crate::error::AppError = err.into();
+        match app_err {
+            crate::error::AppError::Internal(msg) => {
+                assert!(msg.contains("I/O error"));
+                assert!(msg.contains("/secret"));
+            }
+            other => panic!("expected Internal, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn scan_error_database_becomes_internal() {
+        let err = ScanError::Database("connection lost".to_string());
+        let app_err: crate::error::AppError = err.into();
+        match app_err {
+            crate::error::AppError::Internal(msg) => {
+                assert_eq!(msg, "connection lost");
+            }
+            other => panic!("expected Internal, got: {other:?}"),
+        }
+    }
+}

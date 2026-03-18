@@ -204,3 +204,35 @@ pub async fn ensure_unique_username(
         &uuid::Uuid::new_v4().to_string()[..8]
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── UserColumn::as_str ─────────────────────────────────────────
+
+    #[test]
+    fn user_column_display_name() {
+        assert_eq!(UserColumn::DisplayName.as_str(), "display_name");
+    }
+
+    #[test]
+    fn user_column_email() {
+        assert_eq!(UserColumn::Email.as_str(), "email");
+    }
+
+    #[test]
+    fn user_column_kindle_email() {
+        assert_eq!(UserColumn::KindleEmail.as_str(), "kindle_email");
+    }
+
+    #[test]
+    fn user_column_password_hash() {
+        assert_eq!(UserColumn::PasswordHash.as_str(), "password_hash");
+    }
+
+    #[test]
+    fn user_column_role() {
+        assert_eq!(UserColumn::Role.as_str(), "role");
+    }
+}

@@ -1,22 +1,7 @@
-mod api;
-mod auth;
-mod db;
-mod email;
-mod entities;
-mod error;
-mod fts;
-mod googlebooks;
-mod jobs;
-mod metadata;
-mod metaqueue;
-mod openlibrary;
-mod repositories;
-mod scanner;
-mod services;
-mod state;
-
 use std::net::SocketAddr;
 use tracing_subscriber::EnvFilter;
+
+use shelfrat::{api, db, jobs, metaqueue, state};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

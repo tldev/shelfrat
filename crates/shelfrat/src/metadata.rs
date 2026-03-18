@@ -74,3 +74,82 @@ fn looks_like_isbn(s: &str) -> bool {
     let digits: String = s.chars().filter(|c| c.is_ascii_digit() || *c == 'X').collect();
     digits.len() == 10 || digits.len() == 13
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── looks_like_isbn ────────────────────────────────────────────
+
+    #[test]
+    fn isbn10_plain_digits() {
+        assert!(looks_like_isbn("0123456789"));
+    }
+
+    #[test]
+    fn isbn10_with_x() {
+        assert!(looks_like_isbn("012345678X"));
+    }
+
+    #[test]
+    fn isbn13_plain_digits() {
+        assert!(looks_like_isbn("9780123456789"));
+    }
+
+    #[test]
+    fn isbn13_with_dashes() {
+        // Dashes are filtered out, leaving 13 digits.
+        assert!(looks_like_isbn("978-0-12-345678-9"));
+    }
+
+    #[test]
+    fn isbn_too_short() {
+        assert!(!looks_like_isbn("12345"));
+        assert!(!looks_like_isbn("123456789")); // 9 digits
+    }
+
+    #[test]
+    fn isbn_too_long() {
+        assert!(!looks_like_isbn("97801234567890")); // 14 digits
+    }
+
+    #[test]
+    fn isbn_non_digits() {
+        assert!(!looks_like_isbn("abcdefghij"));
+    }
+
+    #[test]
+    fn isbn_empty() {
+        assert!(!looks_like_isbn(""));
+    }
+
+    #[test]
+    fn isbn_11_digits_invalid() {
+        assert!(!looks_like_isbn("01234567890")); // 11 digits
+    }
+
+    #[test]
+    fn isbn_12_digits_invalid() {
+        assert!(!looks_like_isbn("012345678901")); // 12 digits
+    }
+
+    // ── extract with non-epub format ───────────────────────────────
+
+    #[test]
+    fn extract_pdf_returns_none() {
+        let result = extract(std::path::Path::new("/fake/book.pdf"), "pdf");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn extract_mobi_returns_none() {
+        let result = extract(std::path::Path::new("/fake/book.mobi"), "mobi");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn extract_unknown_format_returns_none() {
+        let result = extract(std::path::Path::new("/fake/book.xyz"), "xyz");
+        assert!(result.is_none());
+    }
+}

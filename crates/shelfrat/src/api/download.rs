@@ -199,3 +199,135 @@ fn mime_for_format(format: &str) -> &'static str {
         _ => "application/octet-stream",
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── sanitize_filename ──────────────────────────────────────────
+
+    #[test]
+    fn sanitize_filename_normal() {
+        assert_eq!(sanitize_filename("book.epub"), "book.epub");
+    }
+
+    #[test]
+    fn sanitize_filename_strips_control_chars() {
+        assert_eq!(sanitize_filename("bo\x00ok\x1F.epub"), "book.epub");
+    }
+
+    #[test]
+    fn sanitize_filename_replaces_quotes_and_backslash() {
+        assert_eq!(sanitize_filename("my\"book\\.epub"), "my_book_.epub");
+    }
+
+    #[test]
+    fn sanitize_filename_mixed() {
+        assert_eq!(
+            sanitize_filename("a\x01\"b\\c\x7f"),
+            "a_b_c" // \x7f is a control char (DEL)
+        );
+    }
+
+    #[test]
+    fn sanitize_filename_empty() {
+        assert_eq!(sanitize_filename(""), "");
+    }
+
+    #[test]
+    fn sanitize_filename_all_normal() {
+        let name = "My Book (2024) - Author.epub";
+        assert_eq!(sanitize_filename(name), name);
+    }
+
+    // ── mime_for_format ────────────────────────────────────────────
+
+    #[test]
+    fn mime_epub() {
+        assert_eq!(mime_for_format("epub"), "application/epub+zip");
+    }
+
+    #[test]
+    fn mime_pdf() {
+        assert_eq!(mime_for_format("pdf"), "application/pdf");
+    }
+
+    #[test]
+    fn mime_mobi() {
+        assert_eq!(mime_for_format("mobi"), "application/x-mobipocket-ebook");
+    }
+
+    #[test]
+    fn mime_azw() {
+        assert_eq!(mime_for_format("azw"), "application/vnd.amazon.ebook");
+    }
+
+    #[test]
+    fn mime_azw3() {
+        assert_eq!(mime_for_format("azw3"), "application/vnd.amazon.ebook");
+    }
+
+    #[test]
+    fn mime_fb2() {
+        assert_eq!(mime_for_format("fb2"), "application/x-fictionbook+xml");
+    }
+
+    #[test]
+    fn mime_cbz() {
+        assert_eq!(mime_for_format("cbz"), "application/x-cbz");
+    }
+
+    #[test]
+    fn mime_cbr() {
+        assert_eq!(mime_for_format("cbr"), "application/x-cbr");
+    }
+
+    #[test]
+    fn mime_djvu() {
+        assert_eq!(mime_for_format("djvu"), "image/vnd.djvu");
+    }
+
+    #[test]
+    fn mime_txt() {
+        assert_eq!(mime_for_format("txt"), "text/plain; charset=utf-8");
+    }
+
+    #[test]
+    fn mime_unknown() {
+        assert_eq!(mime_for_format("xyz"), "application/octet-stream");
+        assert_eq!(mime_for_format(""), "application/octet-stream");
+    }
+
+    // ── mime_for_image_ext ─────────────────────────────────────────
+
+    #[test]
+    fn image_jpg() {
+        assert_eq!(mime_for_image_ext("jpg"), "image/jpeg");
+    }
+
+    #[test]
+    fn image_jpeg() {
+        assert_eq!(mime_for_image_ext("jpeg"), "image/jpeg");
+    }
+
+    #[test]
+    fn image_png() {
+        assert_eq!(mime_for_image_ext("png"), "image/png");
+    }
+
+    #[test]
+    fn image_gif() {
+        assert_eq!(mime_for_image_ext("gif"), "image/gif");
+    }
+
+    #[test]
+    fn image_webp() {
+        assert_eq!(mime_for_image_ext("webp"), "image/webp");
+    }
+
+    #[test]
+    fn image_unknown() {
+        assert_eq!(mime_for_image_ext("bmp"), "application/octet-stream");
+        assert_eq!(mime_for_image_ext(""), "application/octet-stream");
+    }
+}

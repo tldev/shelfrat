@@ -160,3 +160,46 @@ impl From<EmailError> for crate::error::AppError {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── EmailError → AppError conversion ───────────────────────────
+
+    #[test]
+    fn config_error_becomes_bad_request() {
+        let err = EmailError::Config("missing host".to_string());
+        let app_err: crate::error::AppError = err.into();
+        match app_err {
+            crate::error::AppError::BadRequest(msg) => {
+                assert!(msg.contains("email is not configured"));
+            }
+            other => panic!("expected BadRequest, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn io_error_becomes_internal() {
+        let err = EmailError::Io("cannot read file".to_string());
+        let app_err: crate::error::AppError = err.into();
+        match app_err {
+            crate::error::AppError::Internal(msg) => {
+                assert_eq!(msg, "cannot read file");
+            }
+            other => panic!("expected Internal, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn send_error_becomes_internal() {
+        let err = EmailError::Send("SMTP failed".to_string());
+        let app_err: crate::error::AppError = err.into();
+        match app_err {
+            crate::error::AppError::Internal(msg) => {
+                assert_eq!(msg, "SMTP failed");
+            }
+            other => panic!("expected Internal, got: {other:?}"),
+        }
+    }
+}
