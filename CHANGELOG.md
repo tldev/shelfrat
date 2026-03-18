@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/tldev/shelfrat/compare/v0.1.2...v0.1.3) (2026-03-18)
+
+
+### Performance Improvements
+
+* **ci:** use native arm64 runners instead of QEMU emulation ([#15](https://github.com/tldev/shelfrat/issues/15)) ([f8782bb](https://github.com/tldev/shelfrat/commit/f8782bb87baf86c57a80b5c48f377bbb24c82767))
+
 ## [0.1.2](https://github.com/tldev/shelfrat/compare/v0.1.1...v0.1.2) (2026-03-18)
 
 
