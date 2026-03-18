@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/tldev/shelfrat/compare/v0.1.1...v0.1.2) (2026-03-18)
+
+
+### Bug Fixes
+
+* **ci:** remove invalid --prefix flag from vitest command in publish workflow ([#13](https://github.com/tldev/shelfrat/issues/13)) ([c5f4844](https://github.com/tldev/shelfrat/commit/c5f48442b1137f604656aea0d6c860ba97b95246))
+
 ## [0.1.1](https://github.com/tldev/shelfrat/compare/v0.1.0...v0.1.1) (2026-03-18)
 
 
