@@ -1,8 +1,7 @@
 [advisories]
-vulnerability = "deny"
+ignore = []
 
 [licenses]
-unlicensed = "deny"
 allow = [
     "MIT",
     "Apache-2.0",
@@ -17,6 +16,7 @@ allow = [
     "BSL-1.0",
     "MPL-2.0",
 ]
+confidence-threshold = 0.8
 
 [bans]
 multiple-versions = "warn"
