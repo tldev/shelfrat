@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
 	import { getAuth } from '$lib/auth.svelte';
 	import { listUsers, createInvite, revokeUser, updateUser, type User } from '$lib/api';
 
@@ -11,12 +10,8 @@
 	let inviteUrl = $state('');
 	let message = $state('');
 
-	onMount(async () => {
-		if (!auth.isAdmin) {
-			goto('/');
-			return;
-		}
-		await loadUsers();
+	onMount(() => {
+		loadUsers();
 	});
 
 	async function loadUsers() {
@@ -75,94 +70,57 @@
 	}
 </script>
 
-<div class="admin">
-	<h1>admin</h1>
-
-	<nav class="admin-nav">
-		<a href="/admin">library & metadata</a>
-		<a href="/admin/users" class="active">users</a>
-		<a href="/admin/auth">auth</a>
-		<a href="/admin/smtp">smtp</a>
-		<a href="/admin/jobs">jobs</a>
-		<a href="/admin/audit">audit log</a>
-	</nav>
-
-	<div class="invite-section">
-		<button onclick={handleInvite}>generate invite link</button>
-		{#if inviteUrl}
-			<div class="invite-url">
-				<input type="text" value={inviteUrl} readonly />
-				<button class="secondary" onclick={copyInvite}>copy</button>
-			</div>
-		{/if}
-	</div>
-
-	{#if message}
-		<p class="result">{message}</p>
-	{/if}
-
-	{#if loading}
-		<p class="status">loading...</p>
-	{:else}
-		<div class="table-wrap">
-		<table>
-			<thead>
-				<tr>
-					<th>username</th>
-					<th>email</th>
-					<th>role</th>
-					<th>joined</th>
-					<th></th>
-				</tr>
-			</thead>
-			<tbody>
-				{#each users as user (user.id)}
-					<tr>
-						<td>{user.username}</td>
-						<td>{user.email || '—'}</td>
-						<td><span class="badge">{user.role}</span></td>
-						<td>{formatDate(user.created_at)}</td>
-						<td class="actions">
-							{#if user.id !== auth.user?.id}
-								<button class="small" onclick={() => handleToggleRole(user)}>
-									{user.role === 'admin' ? 'demote' : 'promote'}
-								</button>
-								<button class="danger small" onclick={() => handleRevoke(user)}>revoke</button>
-							{/if}
-						</td>
-					</tr>
-				{/each}
-			</tbody>
-		</table>
+<div class="invite-section">
+	<button onclick={handleInvite}>generate invite link</button>
+	{#if inviteUrl}
+		<div class="invite-url">
+			<input type="text" value={inviteUrl} readonly />
+			<button class="secondary" onclick={copyInvite}>copy</button>
 		</div>
 	{/if}
 </div>
 
+{#if message}
+	<p class="result">{message}</p>
+{/if}
+
+{#if loading}
+	<p class="status">loading...</p>
+{:else}
+	<div class="table-wrap">
+	<table>
+		<thead>
+			<tr>
+				<th>username</th>
+				<th>email</th>
+				<th>role</th>
+				<th>joined</th>
+				<th></th>
+			</tr>
+		</thead>
+		<tbody>
+			{#each users as user (user.id)}
+				<tr>
+					<td>{user.username}</td>
+					<td>{user.email || '—'}</td>
+					<td><span class="badge">{user.role}</span></td>
+					<td>{formatDate(user.created_at)}</td>
+					<td class="actions">
+						{#if user.id !== auth.user?.id}
+							<button class="small" onclick={() => handleToggleRole(user)}>
+								{user.role === 'admin' ? 'demote' : 'promote'}
+							</button>
+							<button class="danger small" onclick={() => handleRevoke(user)}>revoke</button>
+						{/if}
+					</td>
+				</tr>
+			{/each}
+		</tbody>
+	</table>
+	</div>
+{/if}
+
 <style>
-	.admin {
-		display: flex;
-		flex-direction: column;
-		gap: 1.5rem;
-	}
-
-	.admin-nav {
-		display: flex;
-		gap: 1.5rem;
-		border-bottom: 1px solid var(--border);
-		padding-bottom: 0.75rem;
-	}
-
-	.admin-nav a {
-		font-size: 0.8rem;
-		color: var(--fg-muted);
-		text-decoration: none;
-	}
-
-	.admin-nav a:hover,
-	.admin-nav a.active {
-		color: var(--fg);
-	}
-
 	.invite-section {
 		display: flex;
 		flex-direction: column;
@@ -178,16 +136,6 @@
 	.invite-url input {
 		flex: 1;
 		font-size: 0.75rem;
-	}
-
-	.result {
-		font-size: 0.8rem;
-		color: var(--fg-muted);
-	}
-
-	.status {
-		color: var(--fg-muted);
-		font-size: 0.85rem;
 	}
 
 	table {

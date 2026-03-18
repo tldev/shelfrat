@@ -1,11 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
-	import { getAuth } from '$lib/auth.svelte';
 	import { getSettings, updateSettings } from '$lib/api';
 	import InfoBox from '$lib/InfoBox.svelte';
-
-	const auth = getAuth();
 
 	let settings: Record<string, string> = $state({});
 	let loading = $state(true);
@@ -35,12 +31,8 @@
 		}
 	}
 
-	onMount(async () => {
-		if (!auth.isAdmin) {
-			goto('/');
-			return;
-		}
-		await loadData();
+	onMount(() => {
+		loadData();
 	});
 
 	async function loadData() {
@@ -86,135 +78,98 @@
 	}
 </script>
 
-<div class="admin">
-	<h1>admin</h1>
-
-	<nav class="admin-nav">
-		<a href="/admin">library & metadata</a>
-		<a href="/admin/users">users</a>
-		<a href="/admin/auth" class="active">auth</a>
-		<a href="/admin/smtp">smtp</a>
-		<a href="/admin/jobs">jobs</a>
-		<a href="/admin/audit">audit log</a>
-	</nav>
-
-	{#if loading}
-		<p class="status">loading...</p>
-	{:else}
-		<section>
-			<h2>OIDC</h2>
-			<div class="oidc-layout">
-				<form class="settings-form" onsubmit={handleSave}>
-					<div class="field">
-						<label for="app_url">app URL</label>
-						<input id="app_url" type="url" bind:value={settings.app_url} placeholder="https://shelf.example.com" />
-						<span class="hint">public URL of this app (used for OIDC redirect)</span>
-					</div>
-					<div class="field">
-						<label for="oidc_provider_name">provider name</label>
-						<input id="oidc_provider_name" type="text" bind:value={settings.oidc_provider_name} placeholder="e.g. Authentik, Keycloak" />
-						<span class="hint">shown on the login button as "sign in with [name]"</span>
-					</div>
-					<div class="field">
-						<label for="oidc_issuer_url">issuer URL</label>
-						<input id="oidc_issuer_url" type="url" bind:value={settings.oidc_issuer_url} placeholder="https://auth.example.com/realms/main" />
-						<span class="hint">OIDC provider discovery endpoint base</span>
-					</div>
-					<div class="field">
-						<label for="oidc_client_id">client ID</label>
-						<input id="oidc_client_id" type="text" bind:value={settings.oidc_client_id} />
-					</div>
-					<div class="field">
-						<label for="oidc_client_secret">client secret</label>
-						<input id="oidc_client_secret" type="password" bind:value={settings.oidc_client_secret} placeholder="••••••••" />
-					</div>
-					<div class="field">
-						<label for="oidc_auto_register">auto-register new users</label>
-						<select id="oidc_auto_register" bind:value={settings.oidc_auto_register}>
-							<option value="true">yes</option>
-							<option value="false">no</option>
-						</select>
-						<span class="hint">create accounts automatically on first OIDC login</span>
-					</div>
-					<div class="field-group">
-						<h3>role mapping</h3>
-						<span class="hint">grant admin based on an OIDC claim. role is synced on every login.</span>
-						<div class="field-row">
-							<div class="field">
-								<label for="oidc_admin_claim">claim name</label>
-								<input id="oidc_admin_claim" type="text" bind:value={settings.oidc_admin_claim} placeholder="groups" />
-							</div>
-							<div class="field">
-								<label for="oidc_admin_value">admin value</label>
-								<input id="oidc_admin_value" type="text" bind:value={settings.oidc_admin_value} placeholder="shelfrat-admin" />
-							</div>
+{#if loading}
+	<p class="status">loading...</p>
+{:else}
+	<section>
+		<h2>OIDC</h2>
+		<div class="oidc-layout">
+			<form class="settings-form" onsubmit={handleSave}>
+				<div class="field">
+					<label for="app_url">app URL</label>
+					<input id="app_url" type="url" bind:value={settings.app_url} placeholder="https://shelf.example.com" />
+					<span class="hint">public URL of this app (used for OIDC redirect)</span>
+				</div>
+				<div class="field">
+					<label for="oidc_provider_name">provider name</label>
+					<input id="oidc_provider_name" type="text" bind:value={settings.oidc_provider_name} placeholder="e.g. Authentik, Keycloak" />
+					<span class="hint">shown on the login button as "sign in with [name]"</span>
+				</div>
+				<div class="field">
+					<label for="oidc_issuer_url">issuer URL</label>
+					<input id="oidc_issuer_url" type="url" bind:value={settings.oidc_issuer_url} placeholder="https://auth.example.com/realms/main" />
+					<span class="hint">OIDC provider discovery endpoint base</span>
+				</div>
+				<div class="field">
+					<label for="oidc_client_id">client ID</label>
+					<input id="oidc_client_id" type="text" bind:value={settings.oidc_client_id} />
+				</div>
+				<div class="field">
+					<label for="oidc_client_secret">client secret</label>
+					<input id="oidc_client_secret" type="password" bind:value={settings.oidc_client_secret} placeholder="••••••••" />
+				</div>
+				<div class="field">
+					<label for="oidc_auto_register">auto-register new users</label>
+					<select id="oidc_auto_register" bind:value={settings.oidc_auto_register}>
+						<option value="true">yes</option>
+						<option value="false">no</option>
+					</select>
+					<span class="hint">create accounts automatically on first OIDC login</span>
+				</div>
+				<div class="field-group">
+					<h3>role mapping</h3>
+					<span class="hint">grant admin based on an OIDC claim. role is synced on every login.</span>
+					<div class="field-row">
+						<div class="field">
+							<label for="oidc_admin_claim">claim name</label>
+							<input id="oidc_admin_claim" type="text" bind:value={settings.oidc_admin_claim} placeholder="groups" />
 						</div>
-						<span class="hint">leave admin value blank to disable role mapping</span>
+						<div class="field">
+							<label for="oidc_admin_value">admin value</label>
+							<input id="oidc_admin_value" type="text" bind:value={settings.oidc_admin_value} placeholder="shelfrat-admin" />
+						</div>
 					</div>
-					{#if message}
-						<p class="result">{message}</p>
-					{/if}
-					<button type="submit" disabled={saving}>
-						{saving ? 'saving...' : 'save settings'}
-					</button>
-				</form>
+					<span class="hint">leave admin value blank to disable role mapping</span>
+				</div>
+				{#if message}
+					<p class="result">{message}</p>
+				{/if}
+				<button type="submit" disabled={saving}>
+					{saving ? 'saving...' : 'save settings'}
+				</button>
+			</form>
 
-				<InfoBox title="provider setup">
-					<p>When configuring your OIDC provider, use the following callback URL:</p>
-					{#if callbackUrl}
+			<InfoBox title="provider setup">
+				<p>When configuring your OIDC provider, use the following callback URL:</p>
+				{#if callbackUrl}
+					<div class="copyable-row">
+						<code class="copyable-value">{callbackUrl}</code>
+						<button class="secondary small" onclick={() => copyText(callbackUrl, 'callback')}>
+							{copiedCallback ? 'copied' : 'copy'}
+						</button>
+					</div>
+				{:else}
+					<p class="hint">enter an app URL to generate the callback URL</p>
+				{/if}
+				<dl>
+					<dt>scopes</dt>
+					<dd>
 						<div class="copyable-row">
-							<code class="copyable-value">{callbackUrl}</code>
-							<button class="secondary small" onclick={() => copyText(callbackUrl, 'callback')}>
-								{copiedCallback ? 'copied' : 'copy'}
+							<code class="copyable-value">{scopes}</code>
+							<button class="secondary small" onclick={() => copyText(scopes, 'scopes')}>
+								{copiedScopes ? 'copied' : 'copy'}
 							</button>
 						</div>
-					{:else}
-						<p class="hint">enter an app URL to generate the callback URL</p>
-					{/if}
-					<dl>
-						<dt>scopes</dt>
-						<dd>
-							<div class="copyable-row">
-								<code class="copyable-value">{scopes}</code>
-								<button class="secondary small" onclick={() => copyText(scopes, 'scopes')}>
-									{copiedScopes ? 'copied' : 'copy'}
-								</button>
-							</div>
-						</dd>
-						<dt>grant type</dt>
-						<dd><code>authorization code</code></dd>
-					</dl>
-				</InfoBox>
-			</div>
-		</section>
-	{/if}
-</div>
+					</dd>
+					<dt>grant type</dt>
+					<dd><code>authorization code</code></dd>
+				</dl>
+			</InfoBox>
+		</div>
+	</section>
+{/if}
 
 <style>
-	.admin {
-		display: flex;
-		flex-direction: column;
-		gap: 1.5rem;
-	}
-
-	.admin-nav {
-		display: flex;
-		gap: 1.5rem;
-		border-bottom: 1px solid var(--border);
-		padding-bottom: 0.75rem;
-	}
-
-	.admin-nav a {
-		font-size: 0.8rem;
-		color: var(--fg-muted);
-		text-decoration: none;
-	}
-
-	.admin-nav a:hover,
-	.admin-nav a.active {
-		color: var(--fg);
-	}
-
 	section {
 		display: flex;
 		flex-direction: column;
@@ -278,26 +233,6 @@
 
 	.field-row .field {
 		flex: 1;
-	}
-
-	.field {
-		display: flex;
-		flex-direction: column;
-	}
-
-	.hint {
-		font-size: 0.7rem;
-		color: var(--fg-muted);
-	}
-
-	.result {
-		font-size: 0.8rem;
-		color: var(--fg-muted);
-	}
-
-	.status {
-		color: var(--fg-muted);
-		font-size: 0.85rem;
 	}
 
 	@media (max-width: 640px) {

@@ -1,10 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
-	import { getAuth } from '$lib/auth.svelte';
 	import { getLibraryInfo, getSettings, updateSettings, triggerScan, rebuildIndex, getProviders, updateProviders, testHardcoverKey, resetProvider, type ProviderInfo } from '$lib/api';
-
-	const auth = getAuth();
 
 	let libraryInfo: any = $state(null);
 	let settings: Record<string, string> = $state({});
@@ -25,12 +21,8 @@
 	let resetting: string | null = $state(null);
 	let dragIndex: number | null = $state(null);
 
-	onMount(async () => {
-		if (!auth.isAdmin) {
-			goto('/');
-			return;
-		}
-		await loadData();
+	onMount(() => {
+		loadData();
 	});
 
 	async function loadData() {
@@ -187,194 +179,156 @@
 			resetting = null;
 		}
 	}
-
 </script>
 
-<div class="admin">
-	<h1>admin</h1>
-
-	<nav class="admin-nav">
-		<a href="/admin" class="active">library & metadata</a>
-		<a href="/admin/users">users</a>
-		<a href="/admin/auth">auth</a>
-		<a href="/admin/smtp">smtp</a>
-		<a href="/admin/jobs">jobs</a>
-		<a href="/admin/audit">audit log</a>
-	</nav>
-
-	{#if loading}
-		<p class="status">loading...</p>
-	{:else}
-		<div class="two-col">
-			<div class="col-left">
-				{#if libraryInfo}
-					<section>
-						<h2>library</h2>
-						<div class="stats">
-							<div class="stat">
-								<span class="stat-value">{libraryInfo.available_books}</span>
-								<span class="stat-label">books</span>
-							</div>
-							<div class="stat">
-								<span class="stat-value">{libraryInfo.total_authors}</span>
-								<span class="stat-label">authors</span>
-							</div>
-							{#if libraryInfo.missing_books > 0}
-								<div class="stat">
-									<span class="stat-value">{libraryInfo.missing_books}</span>
-									<span class="stat-label">missing</span>
-								</div>
-							{/if}
-						</div>
-
-						<div class="field library-path-field">
-							<label for="library_path">library path</label>
-							<div class="path-row">
-								<input id="library_path" type="text" bind:value={settings.library_path} placeholder="/path/to/books" />
-								<button class="secondary" onclick={handleSaveLibraryPath} disabled={savingPath}>
-									{savingPath ? 'saving...' : 'save'}
-								</button>
-							</div>
-							{#if pathMessage}
-								<p class="result">{pathMessage}</p>
-							{/if}
-						</div>
-
-						<div class="field library-path-field">
-							<label for="metadata_retry_hours">metadata retry (hours)</label>
-							<div class="path-row">
-								<input id="metadata_retry_hours" type="number" min="0" bind:value={settings.metadata_retry_hours} placeholder="24" />
-								<button class="secondary" onclick={handleSaveRetryHours} disabled={savingRetry}>
-									{savingRetry ? 'saving...' : 'save'}
-								</button>
-							</div>
-							<span class="hint">skip re-fetching metadata from providers within this window</span>
-							{#if retryMessage}
-								<p class="result">{retryMessage}</p>
-							{/if}
-						</div>
-
-						{#if libraryInfo.format_breakdown.length > 0}
-							<div class="formats">
-								{#each libraryInfo.format_breakdown as f}
-									<span class="badge">{f.format} ({f.count})</span>
-								{/each}
-							</div>
-						{/if}
-
-						<div class="actions">
-							<button onclick={handleScan} disabled={scanning}>
-								{scanning ? 'scanning...' : 'full scan'}
-							</button>
-							<button class="secondary" onclick={handleReindex} disabled={reindexing}>
-								{reindexing ? 'indexing...' : 'rebuild index'}
-							</button>
-						</div>
-						{#if scanResult}
-							<p class="result">{scanResult}</p>
-						{/if}
-					</section>
-				{/if}
-			</div>
-
-			<div class="col-right">
+{#if loading}
+	<p class="status">loading...</p>
+{:else}
+	<div class="two-col">
+		<div class="col-left">
+			{#if libraryInfo}
 				<section>
-					<h2>metadata providers</h2>
-					<span class="hint">enabled providers are tried in order during enrichment</span>
-					<div class="provider-list">
-						{#each providers as provider, idx}
-							<div
-								class="provider-item"
-								class:disabled={!provider.enabled}
-								class:dragging={dragIndex === idx}
-								draggable="true"
-								ondragstart={() => handleDragStart(idx)}
-								ondragover={(e) => handleDragOver(e, idx)}
-								ondragend={handleDragEnd}
-								role="listitem"
-							>
-								<div class="provider-row">
-									<span class="drag-handle" title="drag to reorder">::</span>
-									<span class="provider-name">{provider.name}</span>
-									{#if provider.name === 'hardcover' && !provider.key_configured}
-										<span class="hint">set key</span>
-									{/if}
-									<button
-										class="secondary small"
-										onclick={() => handleReset(provider.name)}
-										disabled={resetting === provider.name}
-										title="clear attempt history so books are re-queried"
-									>
-										{resetting === provider.name ? '...' : 'reset'}
-									</button>
-									<div class="move-buttons">
-										<button class="secondary small" onclick={() => moveUp(idx)} disabled={idx === 0} title="move up">^</button>
-										<button class="secondary small" onclick={() => moveDown(idx)} disabled={idx === providers.length - 1} title="move down">v</button>
-									</div>
-								</div>
-								<label class="toggle">
-									<input
-										type="checkbox"
-										checked={provider.enabled}
-										onchange={() => toggleProvider(provider.name)}
-										disabled={provider.name === 'hardcover' && !provider.key_configured}
-									/>
-									<span class="toggle-box">{provider.enabled ? 'x' : '\u00a0'}</span>
-								</label>
+					<h2>library</h2>
+					<div class="stats">
+						<div class="stat">
+							<span class="stat-value">{libraryInfo.available_books}</span>
+							<span class="stat-label">books</span>
+						</div>
+						<div class="stat">
+							<span class="stat-value">{libraryInfo.total_authors}</span>
+							<span class="stat-label">authors</span>
+						</div>
+						{#if libraryInfo.missing_books > 0}
+							<div class="stat">
+								<span class="stat-value">{libraryInfo.missing_books}</span>
+								<span class="stat-label">missing</span>
 							</div>
-						{/each}
+						{/if}
 					</div>
-					{#if providerMessage}
-						<p class="result">{providerMessage}</p>
-					{/if}
-				</section>
 
-				<section>
-					<h2>hardcover API key</h2>
-					{#if providers.find((p) => p.name === 'hardcover')?.key_configured}
-						<span class="badge configured">configured</span>
+					<div class="field library-path-field">
+						<label for="library_path">library path</label>
+						<div class="path-row">
+							<input id="library_path" type="text" bind:value={settings.library_path} placeholder="/path/to/books" />
+							<button class="secondary" onclick={handleSaveLibraryPath} disabled={savingPath}>
+								{savingPath ? 'saving...' : 'save'}
+							</button>
+						</div>
+						{#if pathMessage}
+							<p class="result">{pathMessage}</p>
+						{/if}
+					</div>
+
+					<div class="field library-path-field">
+						<label for="metadata_retry_hours">metadata retry (hours)</label>
+						<div class="path-row">
+							<input id="metadata_retry_hours" type="number" min="0" bind:value={settings.metadata_retry_hours} placeholder="24" />
+							<button class="secondary" onclick={handleSaveRetryHours} disabled={savingRetry}>
+								{savingRetry ? 'saving...' : 'save'}
+							</button>
+						</div>
+						<span class="hint">skip re-fetching metadata from providers within this window</span>
+						{#if retryMessage}
+							<p class="result">{retryMessage}</p>
+						{/if}
+					</div>
+
+					{#if libraryInfo.format_breakdown.length > 0}
+						<div class="formats">
+							{#each libraryInfo.format_breakdown as f}
+								<span class="badge">{f.format} ({f.count})</span>
+							{/each}
+						</div>
 					{/if}
-					<div class="key-row">
-						<input type="password" bind:value={apiKey} placeholder="Bearer eyJhb..." />
-						<button class="secondary" onclick={handleTestKey} disabled={testingKey || !apiKey.trim()}>
-							{testingKey ? 'testing...' : 'test & save'}
+
+					<div class="actions">
+						<button onclick={handleScan} disabled={scanning}>
+							{scanning ? 'scanning...' : 'full scan'}
+						</button>
+						<button class="secondary" onclick={handleReindex} disabled={reindexing}>
+							{reindexing ? 'indexing...' : 'rebuild index'}
 						</button>
 					</div>
-					<span class="hint">validated before saving — <a href="https://hardcover.app/account/api" target="_blank" rel="noopener">get your API key</a></span>
-					{#if keyMessage}
-						<p class="result">{keyMessage}</p>
+					{#if scanResult}
+						<p class="result">{scanResult}</p>
 					{/if}
 				</section>
-			</div>
+			{/if}
 		</div>
-	{/if}
-</div>
+
+		<div class="col-right">
+			<section>
+				<h2>metadata providers</h2>
+				<span class="hint">enabled providers are tried in order during enrichment</span>
+				<div class="provider-list">
+					{#each providers as provider, idx}
+						<div
+							class="provider-item"
+							class:disabled={!provider.enabled}
+							class:dragging={dragIndex === idx}
+							draggable="true"
+							ondragstart={() => handleDragStart(idx)}
+							ondragover={(e) => handleDragOver(e, idx)}
+							ondragend={handleDragEnd}
+							role="listitem"
+						>
+							<div class="provider-row">
+								<span class="drag-handle" title="drag to reorder">::</span>
+								<span class="provider-name">{provider.name}</span>
+								{#if provider.name === 'hardcover' && !provider.key_configured}
+									<span class="hint">set key</span>
+								{/if}
+								<button
+									class="secondary small"
+									onclick={() => handleReset(provider.name)}
+									disabled={resetting === provider.name}
+									title="clear attempt history so books are re-queried"
+								>
+									{resetting === provider.name ? '...' : 'reset'}
+								</button>
+								<div class="move-buttons">
+									<button class="secondary small" onclick={() => moveUp(idx)} disabled={idx === 0} title="move up">^</button>
+									<button class="secondary small" onclick={() => moveDown(idx)} disabled={idx === providers.length - 1} title="move down">v</button>
+								</div>
+							</div>
+							<label class="toggle">
+								<input
+									type="checkbox"
+									checked={provider.enabled}
+									onchange={() => toggleProvider(provider.name)}
+									disabled={provider.name === 'hardcover' && !provider.key_configured}
+								/>
+								<span class="toggle-box">{provider.enabled ? 'x' : '\u00a0'}</span>
+							</label>
+						</div>
+					{/each}
+				</div>
+				{#if providerMessage}
+					<p class="result">{providerMessage}</p>
+				{/if}
+			</section>
+
+			<section>
+				<h2>hardcover API key</h2>
+				{#if providers.find((p) => p.name === 'hardcover')?.key_configured}
+					<span class="badge configured">configured</span>
+				{/if}
+				<div class="key-row">
+					<input type="password" bind:value={apiKey} placeholder="Bearer eyJhb..." />
+					<button class="secondary" onclick={handleTestKey} disabled={testingKey || !apiKey.trim()}>
+						{testingKey ? 'testing...' : 'test & save'}
+					</button>
+				</div>
+				<span class="hint">validated before saving — <a href="https://hardcover.app/account/api" target="_blank" rel="noopener">get your API key</a></span>
+				{#if keyMessage}
+					<p class="result">{keyMessage}</p>
+				{/if}
+			</section>
+		</div>
+	</div>
+{/if}
 
 <style>
-	.admin {
-		display: flex;
-		flex-direction: column;
-		gap: 1.5rem;
-	}
-
-	.admin-nav {
-		display: flex;
-		gap: 1.5rem;
-		border-bottom: 1px solid var(--border);
-		padding-bottom: 0.75rem;
-	}
-
-	.admin-nav a {
-		font-size: 0.8rem;
-		color: var(--fg-muted);
-		text-decoration: none;
-	}
-
-	.admin-nav a:hover,
-	.admin-nav a.active {
-		color: var(--fg);
-	}
-
 	.two-col {
 		display: flex;
 		gap: 2.5rem;
@@ -431,11 +385,6 @@
 		gap: 0.5rem;
 	}
 
-	.result {
-		font-size: 0.8rem;
-		color: var(--fg-muted);
-	}
-
 	.library-path-field {
 		max-width: var(--max-w-narrow);
 	}
@@ -447,21 +396,6 @@
 
 	.path-row input {
 		flex: 1;
-	}
-
-	.field {
-		display: flex;
-		flex-direction: column;
-	}
-
-	.hint {
-		font-size: 0.7rem;
-		color: var(--fg-muted);
-	}
-
-	.status {
-		color: var(--fg-muted);
-		font-size: 0.85rem;
 	}
 
 	.provider-list {
