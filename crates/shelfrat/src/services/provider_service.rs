@@ -20,14 +20,14 @@ pub struct ProviderInfo {
 
 /// Get the ordered list of enabled provider names from config.
 pub async fn get_enabled_providers(db: &DatabaseConnection) -> Vec<String> {
-    let raw = config_repo::get(db, "metadata_providers").await.ok().flatten();
+    let raw = config_repo::get(db, "metadata_providers")
+        .await
+        .ok()
+        .flatten();
 
     match raw {
-        Some(json_str) => {
-            serde_json::from_str::<Vec<String>>(&json_str).unwrap_or_else(|_| {
-                DEFAULT_PROVIDERS.iter().map(|s| s.to_string()).collect()
-            })
-        }
+        Some(json_str) => serde_json::from_str::<Vec<String>>(&json_str)
+            .unwrap_or_else(|_| DEFAULT_PROVIDERS.iter().map(|s| s.to_string()).collect()),
         None => DEFAULT_PROVIDERS.iter().map(|s| s.to_string()).collect(),
     }
 }
@@ -108,7 +108,10 @@ pub async fn update_provider_order(
         db,
         Some(admin_id),
         "settings_updated",
-        Some(&format!("metadata providers updated: {}", providers.join(", "))),
+        Some(&format!(
+            "metadata providers updated: {}",
+            providers.join(", ")
+        )),
     )
     .await
     .map_err(|e| e.to_string())?;
@@ -158,7 +161,9 @@ pub async fn reset_provider(
         db,
         Some(admin_id),
         "settings_updated",
-        Some(&format!("reset {provider} attempts ({cleared} records cleared)")),
+        Some(&format!(
+            "reset {provider} attempts ({cleared} records cleared)"
+        )),
     )
     .await
     .map_err(|e| e.to_string())?;

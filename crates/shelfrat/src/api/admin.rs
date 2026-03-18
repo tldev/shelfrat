@@ -15,18 +15,9 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/audit-log", get(query_audit_log))
         .route("/admin/settings", get(get_settings).put(update_settings))
         .route("/admin/library-info", get(library_info))
-        .route(
-            "/admin/providers",
-            get(get_providers).put(update_providers),
-        )
-        .route(
-            "/admin/providers/test-hardcover",
-            post(test_hardcover_key),
-        )
-        .route(
-            "/admin/providers/{name}/reset",
-            post(reset_provider),
-        )
+        .route("/admin/providers", get(get_providers).put(update_providers))
+        .route("/admin/providers/test-hardcover", post(test_hardcover_key))
+        .route("/admin/providers/{name}/reset", post(reset_provider))
 }
 
 #[derive(Debug, Deserialize)]

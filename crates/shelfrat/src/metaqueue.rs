@@ -125,7 +125,14 @@ async fn process_book(
                     tracing::warn!("metaqueue: hardcover enabled but no API key configured");
                     continue;
                 }
-                metadata_service::enrich_from_hardcover(db, pool, book_id, Some(covers_dir), &api_key).await
+                metadata_service::enrich_from_hardcover(
+                    db,
+                    pool,
+                    book_id,
+                    Some(covers_dir),
+                    &api_key,
+                )
+                .await
             }
             _ => {
                 tracing::warn!("metaqueue: unknown provider {provider}");

@@ -19,7 +19,10 @@ async fn graphql(api_key: &str, query: &str, variables: Value) -> Option<Value> 
 
     let resp = reqwest::Client::new()
         .post(HC_GRAPHQL_URL)
-        .header("Authorization", format!("Bearer {}", normalize_key(api_key)))
+        .header(
+            "Authorization",
+            format!("Bearer {}", normalize_key(api_key)),
+        )
         .json(&body)
         .send()
         .await
@@ -72,9 +75,7 @@ pub async fn lookup_by_isbn(api_key: &str, isbn: &str) -> Option<ExtractedMetada
         .or_else(|| str_field(edition, "isbn_10"))
         .or_else(|| Some(isbn.to_string()));
 
-    let publisher = edition
-        .get("publisher")
-        .and_then(|p| str_field(p, "name"));
+    let publisher = edition.get("publisher").and_then(|p| str_field(p, "name"));
 
     let cover_url = edition.get("image").and_then(|img| str_field(img, "url"));
     let cover_data = fetch_cover_opt(cover_url.as_deref()).await;
@@ -105,12 +106,7 @@ pub async fn search_by_title(api_key: &str, title: &str) -> Option<ExtractedMeta
         }
     "#;
 
-    let data = graphql(
-        api_key,
-        search_query,
-        serde_json::json!({ "query": title }),
-    )
-    .await?;
+    let data = graphql(api_key, search_query, serde_json::json!({ "query": title })).await?;
 
     let results = data.get("search")?.get("results")?;
     let hit = results.get("hits")?.as_array()?.first()?;
@@ -150,8 +146,7 @@ pub async fn search_by_title(api_key: &str, title: &str) -> Option<ExtractedMeta
         .and_then(|e| e.as_array())
         .and_then(|a| a.first());
 
-    let isbn = edition
-        .and_then(|e| str_field(e, "isbn_13").or_else(|| str_field(e, "isbn_10")));
+    let isbn = edition.and_then(|e| str_field(e, "isbn_13").or_else(|| str_field(e, "isbn_10")));
     let published_date = edition.and_then(|e| str_field(e, "release_date"));
 
     // cached_image is a JSONB field — may be {"url": "..."} or a bare string
@@ -183,7 +178,10 @@ pub async fn test_api_key(api_key: &str) -> Result<(), String> {
 
     let resp = reqwest::Client::new()
         .post(HC_GRAPHQL_URL)
-        .header("Authorization", format!("Bearer {}", normalize_key(api_key)))
+        .header(
+            "Authorization",
+            format!("Bearer {}", normalize_key(api_key)),
+        )
         .json(&body)
         .send()
         .await
