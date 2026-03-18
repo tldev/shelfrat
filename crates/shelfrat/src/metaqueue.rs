@@ -4,6 +4,8 @@ use sea_orm::DatabaseConnection;
 use sqlx::SqlitePool;
 use tokio::sync::mpsc;
 
+use crate::provider_error::EnrichError;
+use crate::rate_limiter::RateLimiters;
 use crate::repositories::{config_repo, metadata_repo};
 use crate::services::{metadata_service, provider_service};
 
@@ -49,6 +51,8 @@ async fn worker(
     db: DatabaseConnection,
     covers_dir: PathBuf,
 ) {
+    let mut limiters = RateLimiters::new();
+
     while let Some(book_id) = rx.recv().await {
         // Small delay to batch rapid-fire submissions (e.g. after a scan)
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -66,7 +70,7 @@ async fn worker(
                 i + 1,
                 batch.len()
             );
-            process_book(&pool, &db, *id, &covers_dir).await;
+            process_book(&pool, &db, *id, &covers_dir, &mut limiters).await;
         }
         tracing::info!("metaqueue: batch complete");
     }
@@ -80,6 +84,7 @@ async fn process_book(
     db: &DatabaseConnection,
     book_id: i64,
     covers_dir: &std::path::Path,
+    limiters: &mut RateLimiters,
 ) {
     // Extract embedded metadata first (from the file itself)
     let needs_embedded = metadata_repo::needs_embedded_extraction(db, book_id)
@@ -108,12 +113,28 @@ async fn process_book(
             continue;
         }
 
+        let limiter = limiters.get_mut(provider);
+
         let result = match provider.as_str() {
             "openlibrary" => {
-                metadata_service::enrich_from_openlibrary(db, pool, book_id, Some(covers_dir)).await
+                metadata_service::enrich_from_openlibrary(
+                    db,
+                    pool,
+                    book_id,
+                    Some(covers_dir),
+                    limiter,
+                )
+                .await
             }
             "googlebooks" => {
-                metadata_service::enrich_from_googlebooks(db, pool, book_id, Some(covers_dir)).await
+                metadata_service::enrich_from_googlebooks(
+                    db,
+                    pool,
+                    book_id,
+                    Some(covers_dir),
+                    limiter,
+                )
+                .await
             }
             "hardcover" => {
                 let api_key = config_repo::get(db, "hardcover_api_key")
@@ -131,6 +152,7 @@ async fn process_book(
                     book_id,
                     Some(covers_dir),
                     &api_key,
+                    limiter,
                 )
                 .await
             }
@@ -140,16 +162,31 @@ async fn process_book(
             }
         };
 
-        if let Err(e) = metadata_repo::record_provider_attempt(db, book_id, provider).await {
-            tracing::warn!(
-                "metaqueue: failed to record {provider} attempt for book {book_id}: {e}"
-            );
+        match &result {
+            Ok(true) => {
+                tracing::info!("metaqueue: enriched book {book_id} from {provider}");
+                limiter.on_success();
+            }
+            Ok(false) => {
+                tracing::info!("metaqueue: no {provider} match for book {book_id}");
+                limiter.on_success();
+            }
+            Err(EnrichError::RateLimited) => {
+                tracing::warn!("metaqueue: {provider} rate limited for book {book_id}");
+                limiter.on_rate_limited();
+            }
+            Err(e) => {
+                tracing::warn!("metaqueue: {provider} failed for book {book_id}: {e}");
+            }
         }
 
-        match result {
-            Ok(true) => tracing::info!("metaqueue: enriched book {book_id} from {provider}"),
-            Ok(false) => tracing::info!("metaqueue: no {provider} match for book {book_id}"),
-            Err(e) => tracing::warn!("metaqueue: {provider} failed for book {book_id}: {e}"),
+        // Only record the attempt if it wasn't a transient error
+        if result.is_ok() {
+            if let Err(e) = metadata_repo::record_provider_attempt(db, book_id, provider).await {
+                tracing::warn!(
+                    "metaqueue: failed to record {provider} attempt for book {book_id}: {e}"
+                );
+            }
         }
     }
 }

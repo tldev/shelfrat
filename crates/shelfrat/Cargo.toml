@@ -37,3 +37,4 @@ sha2.workspace = true
 epub.workspace = true
 lettre.workspace = true
 reqwest.workspace = true
+strsim.workspace = true

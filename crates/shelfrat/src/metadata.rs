@@ -11,6 +11,8 @@ pub struct ExtractedMetadata {
     pub isbn: Option<String>,
     pub authors: Vec<String>,
     pub cover_data: Option<Vec<u8>>,
+    /// Provider-specific identifier for follow-up queries (not persisted to DB).
+    pub provider_id: Option<String>,
 }
 
 /// Extract metadata from an ebook file based on its format.
@@ -68,6 +70,7 @@ fn extract_epub(path: &Path) -> Option<ExtractedMetadata> {
         isbn,
         authors,
         cover_data,
+        provider_id: None,
     })
 }
 
