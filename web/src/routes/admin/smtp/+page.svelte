@@ -54,6 +54,7 @@
 		<a href="/admin">settings</a>
 		<a href="/admin/users">users</a>
 		<a href="/admin/auth">auth</a>
+		<a href="/admin/providers">providers</a>
 		<a href="/admin/smtp" class="active">smtp</a>
 		<a href="/admin/jobs">jobs</a>
 		<a href="/admin/audit">audit log</a>

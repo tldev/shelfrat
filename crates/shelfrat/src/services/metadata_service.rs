@@ -129,6 +129,41 @@ pub async fn enrich_from_openlibrary(
     Ok(true)
 }
 
+/// Enrich a book from Hardcover.
+pub async fn enrich_from_hardcover(
+    db: &DatabaseConnection,
+    pool: &sqlx::SqlitePool,
+    book_id: i64,
+    covers_dir: Option<&Path>,
+    api_key: &str,
+) -> Result<bool, sea_orm::DbErr> {
+    let meta = metadata_repo::get_meta_lookup(db, book_id).await?;
+    let Some(meta) = meta else {
+        return Ok(false);
+    };
+
+    let isbn = meta.isbn_13.or(meta.isbn_10);
+    let result = if let Some(ref isbn) = isbn {
+        crate::hardcover::lookup_by_isbn(api_key, isbn).await
+    } else if let Some(ref title) = meta.title {
+        crate::hardcover::search_by_title(api_key, title).await
+    } else {
+        None
+    };
+
+    let Some(extracted) = result else {
+        return Ok(false);
+    };
+
+    apply_extracted_metadata(db, book_id, &extracted, covers_dir).await?;
+    crate::fts::update_book_fts(pool, book_id)
+        .await
+        .map_err(|e| sea_orm::DbErr::Custom(e.to_string()))?;
+    metadata_repo::set_source(db, book_id, "hardcover", true).await?;
+
+    Ok(true)
+}
+
 /// Enrich a book from Google Books.
 pub async fn enrich_from_googlebooks(
     db: &DatabaseConnection,

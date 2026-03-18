@@ -211,6 +211,21 @@ pub async fn provider_attempted(
     .unwrap_or(false))
 }
 
+/// Clear all provider attempt records for a given provider, allowing re-enrichment.
+pub async fn clear_provider_attempts(
+    db: &DatabaseConnection,
+    provider: &str,
+) -> Result<u64, DbErr> {
+    let result = db
+        .execute(Statement::from_sql_and_values(
+            DatabaseBackend::Sqlite,
+            "DELETE FROM metadata_provider_attempts WHERE provider = ?",
+            [provider.into()],
+        ))
+        .await?;
+    Ok(result.rows_affected())
+}
+
 /// Check if a book still needs enrichment (missing description, cover, or authors).
 pub async fn needs_enrichment(db: &DatabaseConnection, book_id: i64) -> Result<bool, DbErr> {
     #[derive(FromQueryResult)]

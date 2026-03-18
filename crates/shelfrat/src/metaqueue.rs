@@ -4,8 +4,8 @@ use sea_orm::DatabaseConnection;
 use sqlx::SqlitePool;
 use tokio::sync::mpsc;
 
-use crate::repositories::metadata_repo;
-use crate::services::metadata_service;
+use crate::repositories::{config_repo, metadata_repo};
+use crate::services::{metadata_service, provider_service};
 
 /// A handle for submitting book IDs to the background metadata queue.
 #[derive(Clone)]
@@ -74,9 +74,6 @@ async fn worker(
     tracing::debug!("metadata queue worker exiting");
 }
 
-/// Enrichment providers, tried in order.
-pub const PROVIDERS: &[&str] = &["openlibrary", "googlebooks"];
-
 /// Process a single book: extract embedded metadata, then try external providers.
 async fn process_book(
     pool: &SqlitePool,
@@ -96,7 +93,8 @@ async fn process_book(
     }
 
     // Try external providers until the book is fully enriched
-    for &provider in PROVIDERS {
+    let providers = provider_service::get_enabled_providers(db).await;
+    for provider in &providers {
         if !metadata_repo::needs_enrichment(db, book_id)
             .await
             .unwrap_or(false)
@@ -110,12 +108,24 @@ async fn process_book(
             continue;
         }
 
-        let result = match provider {
+        let result = match provider.as_str() {
             "openlibrary" => {
                 metadata_service::enrich_from_openlibrary(db, pool, book_id, Some(covers_dir)).await
             }
             "googlebooks" => {
                 metadata_service::enrich_from_googlebooks(db, pool, book_id, Some(covers_dir)).await
+            }
+            "hardcover" => {
+                let api_key = config_repo::get(db, "hardcover_api_key")
+                    .await
+                    .ok()
+                    .flatten()
+                    .unwrap_or_default();
+                if api_key.is_empty() {
+                    tracing::warn!("metaqueue: hardcover enabled but no API key configured");
+                    continue;
+                }
+                metadata_service::enrich_from_hardcover(db, pool, book_id, Some(covers_dir), &api_key).await
             }
             _ => {
                 tracing::warn!("metaqueue: unknown provider {provider}");

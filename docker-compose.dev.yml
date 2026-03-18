@@ -21,9 +21,8 @@ services:
       # SQLite data — persists your dev database across restarts
       - data:/data
 
-      # Library mount — point this at a local test directory with some epubs.
-      # Comment out or change the host path as needed.
-      # - ./test-library:/library:ro
+      # Library mount — set HOST_LIBRARY_PATH in .env to your host ebook directory
+      - ${HOST_LIBRARY_PATH:-./.empty-library}:/library:ro
     environment:
       DATABASE_URL: sqlite:/data/shelfrat.db
       LIBRARY_PATH: /library

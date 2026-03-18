@@ -6,6 +6,7 @@ pub mod entities;
 pub mod error;
 pub mod fts;
 pub mod googlebooks;
+pub mod hardcover;
 pub mod jobs;
 pub mod metadata;
 pub mod metaqueue;

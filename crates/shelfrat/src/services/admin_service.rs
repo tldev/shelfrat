@@ -25,6 +25,8 @@ const CONFIGURABLE_KEYS: &[&str] = &[
     "oidc_auto_register",
     "oidc_admin_claim",
     "oidc_admin_value",
+    "hardcover_api_key",
+    "metadata_providers",
 ];
 
 pub async fn get_settings(db: &DatabaseConnection) -> Result<Value, AppError> {
@@ -36,6 +38,7 @@ pub async fn get_settings(db: &DatabaseConnection) -> Result<Value, AppError> {
             CONFIGURABLE_KEYS.contains(&r.key.as_str())
                 && r.key != "smtp_password"
                 && r.key != "oidc_client_secret"
+                && r.key != "hardcover_api_key"
         })
         .map(|r| (r.key, r.value))
         .collect();

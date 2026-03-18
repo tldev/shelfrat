@@ -139,7 +139,8 @@ async fn queue_metadata_enrichment(
         .and_then(|v| v.parse().ok())
         .unwrap_or(24);
 
-    let provider_count = crate::metaqueue::PROVIDERS.len() as i64;
+    let provider_count =
+        crate::services::provider_service::get_enabled_providers(db).await.len() as i64;
 
     let books_needing = metadata_repo::books_needing_metadata(db, retry_hours, provider_count)
         .await

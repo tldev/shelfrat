@@ -6,7 +6,7 @@ services:
       - "3000:3000"
     volumes:
       - data:/data
-      - /your/path/to/library:/library:ro
+      - ${HOST_LIBRARY_PATH:?Set HOST_LIBRARY_PATH in .env}:/library:ro
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}

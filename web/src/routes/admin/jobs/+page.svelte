@@ -135,6 +135,7 @@
 		<a href="/admin">settings</a>
 		<a href="/admin/users">users</a>
 		<a href="/admin/auth">auth</a>
+		<a href="/admin/providers">providers</a>
 		<a href="/admin/smtp">smtp</a>
 		<a href="/admin/jobs" class="active">jobs</a>
 		<a href="/admin/audit">audit log</a>

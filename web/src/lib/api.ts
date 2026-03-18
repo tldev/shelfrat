@@ -280,6 +280,32 @@ export function updateJobCadence(name: string, seconds: number) {
 	return put<any>(`/admin/jobs/${name}/cadence`, { seconds });
 }
 
+// --- Providers ---
+
+export interface ProviderInfo {
+	name: string;
+	enabled: boolean;
+	order: number;
+	requires_key: boolean;
+	key_configured: boolean;
+}
+
+export function getProviders() {
+	return get<{ providers: ProviderInfo[] }>('/admin/providers');
+}
+
+export function updateProviders(providers: string[]) {
+	return put<{ message: string }>('/admin/providers', { providers });
+}
+
+export function testHardcoverKey(apiKey: string) {
+	return post<{ message: string }>('/admin/providers/test-hardcover', { api_key: apiKey });
+}
+
+export function resetProvider(name: string) {
+	return post<{ message: string; cleared: number }>(`/admin/providers/${name}/reset`);
+}
+
 export function getAuditLog(params?: { action?: string; user_id?: number; limit?: number; offset?: number }) {
 	const qs = new URLSearchParams();
 	if (params?.action) qs.set('action', params.action);
