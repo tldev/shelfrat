@@ -37,13 +37,20 @@ jobs:
         run: npx vitest run
         working-directory: web
 
-  publish:
-    name: Build & push image
+  build:
+    name: Build ${{ matrix.platform }}
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: write
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
 
@@ -54,8 +61,61 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: Merge manifests & publish
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -72,26 +132,39 @@ jobs:
             type=raw,value=latest
             type=sha,prefix=
 
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Smoke test published image (amd64)
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
         run: |
-          SHA_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$(echo ${{ github.sha }} | head -c 7)"
-          # Pull uses cached layers from the push above
-          docker run -d --name smoke -p 3000:3000 "${SHA_TAG,,}"
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
+
+      - name: Inspect image
+        run: |
+          docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+
+  smoke-test:
+    name: Smoke test
+    needs: merge
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run smoke test
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          docker run -d --name smoke -p 3000:3000 "${IMAGE,,}"
           for i in $(seq 1 30); do
             if curl -sf http://localhost:3000/api/v1/health; then
               echo ""
-              echo "Smoke test passed for ${SHA_TAG,,}"
+              echo "Smoke test passed"
               exit 0
             fi
             sleep 1
@@ -99,6 +172,7 @@ jobs:
           echo "Smoke test failed"
           docker logs smoke
           exit 1
+
       - name: Cleanup
         if: always()
         run: docker rm -f smoke 2>/dev/null || true
