@@ -1,10 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
-	import { getAuth } from '$lib/auth.svelte';
 	import { getJobs, triggerJob, getJobRuns, updateJobCadence } from '$lib/api';
-
-	const auth = getAuth();
 
 	let jobs: any[] = $state([]);
 	let loading = $state(true);
@@ -19,12 +15,7 @@
 	let pollInterval: ReturnType<typeof setInterval> | null = null;
 
 	onMount(() => {
-		if (!auth.isAdmin) {
-			goto('/');
-			return;
-		}
 		loadJobs();
-
 		return () => {
 			if (pollInterval) clearInterval(pollInterval);
 		};
@@ -128,129 +119,92 @@
 	}
 </script>
 
-<div class="admin">
-	<h1>admin</h1>
-
-	<nav class="admin-nav">
-		<a href="/admin">library & metadata</a>
-		<a href="/admin/users">users</a>
-		<a href="/admin/auth">auth</a>
-		<a href="/admin/smtp">smtp</a>
-		<a href="/admin/jobs" class="active">jobs</a>
-		<a href="/admin/audit">audit log</a>
-	</nav>
-
-	{#if loading}
-		<p class="status">loading...</p>
-	{:else if jobs.length === 0}
-		<p class="status">no jobs configured</p>
-	{:else}
-		{#each jobs as job (job.name)}
-			<section class="job-card">
-				<div class="job-header">
-					<div>
-						<h2>{job.name}</h2>
-						{#if job.description}
-							<p class="job-description">{job.description}</p>
-						{/if}
-					</div>
-					<button onclick={() => handleRun(job.name)} disabled={runningJobs[job.name] || job.status === 'running'}>
-						{runningJobs[job.name] || job.status === 'running' ? 'running...' : 'run now'}
-					</button>
-				</div>
-				{#if runMessages[job.name]}
-					<p class="result">{runMessages[job.name]}</p>
-				{/if}
-
-				<div class="cadence-row">
-					<span class="cadence-label">every</span>
-					<input
-						id="cadence_{job.name}"
-						type="number"
-						min="0"
-						bind:value={cadenceInputs[job.name]}
-					/>
-					<span class="cadence-label">s ({formatCadence(cadenceInputs[job.name] ?? 0)})</span>
-					<button class="secondary small" onclick={() => handleSaveCadence(job.name)} disabled={savingCadence[job.name]}>
-						{savingCadence[job.name] ? '...' : 'save'}
-					</button>
-					{#if cadenceMessages[job.name]}
-						<span class="result">{cadenceMessages[job.name]}</span>
+{#if loading}
+	<p class="status">loading...</p>
+{:else if jobs.length === 0}
+	<p class="status">no jobs configured</p>
+{:else}
+	{#each jobs as job (job.name)}
+		<section class="job-card">
+			<div class="job-header">
+				<div>
+					<h2>{job.name}</h2>
+					{#if job.description}
+						<p class="job-description">{job.description}</p>
 					{/if}
 				</div>
+				<button onclick={() => handleRun(job.name)} disabled={runningJobs[job.name] || job.status === 'running'}>
+					{runningJobs[job.name] || job.status === 'running' ? 'running...' : 'run now'}
+				</button>
+			</div>
+			{#if runMessages[job.name]}
+				<p class="result">{runMessages[job.name]}</p>
+			{/if}
 
-				{#if job.last_run}
-					<p class="last-run">
-						<span class="badge">{job.last_run.status}</span>
-						{formatTime(job.last_run.started_at)}
-						{#if job.last_run.duration_ms != null}· {formatDuration(job.last_run.duration_ms)}{/if}
-						{#if job.last_run.result_summary}· {job.last_run.result_summary}{/if}
-						<button class="link" onclick={() => toggleRuns(job.name)}>
-							{expandedRuns[job.name] ? 'hide history' : 'history'}
-						</button>
-					</p>
+			<div class="cadence-row">
+				<span class="cadence-label">every</span>
+				<input
+					id="cadence_{job.name}"
+					type="number"
+					min="0"
+					bind:value={cadenceInputs[job.name]}
+				/>
+				<span class="cadence-label">s ({formatCadence(cadenceInputs[job.name] ?? 0)})</span>
+				<button class="secondary small" onclick={() => handleSaveCadence(job.name)} disabled={savingCadence[job.name]}>
+					{savingCadence[job.name] ? '...' : 'save'}
+				</button>
+				{#if cadenceMessages[job.name]}
+					<span class="result">{cadenceMessages[job.name]}</span>
 				{/if}
+			</div>
 
-				{#if expandedRuns[job.name]}
-					{#if loadingRuns[job.name]}
-						<p class="status">loading...</p>
-					{:else if jobRuns[job.name]?.length === 0}
-						<p class="status">no runs yet</p>
-					{:else if jobRuns[job.name]}
-						<div class="table-wrap">
-						<table>
-							<thead>
+			{#if job.last_run}
+				<p class="last-run">
+					<span class="badge">{job.last_run.status}</span>
+					{formatTime(job.last_run.started_at)}
+					{#if job.last_run.duration_ms != null}· {formatDuration(job.last_run.duration_ms)}{/if}
+					{#if job.last_run.result_summary}· {job.last_run.result_summary}{/if}
+					<button class="link" onclick={() => toggleRuns(job.name)}>
+						{expandedRuns[job.name] ? 'hide history' : 'history'}
+					</button>
+				</p>
+			{/if}
+
+			{#if expandedRuns[job.name]}
+				{#if loadingRuns[job.name]}
+					<p class="status">loading...</p>
+				{:else if jobRuns[job.name]?.length === 0}
+					<p class="status">no runs yet</p>
+				{:else if jobRuns[job.name]}
+					<div class="table-wrap">
+					<table>
+						<thead>
+							<tr>
+								<th>started</th>
+								<th>status</th>
+								<th>duration</th>
+								<th>result</th>
+							</tr>
+						</thead>
+						<tbody>
+							{#each jobRuns[job.name] as run}
 								<tr>
-									<th>started</th>
-									<th>status</th>
-									<th>duration</th>
-									<th>result</th>
+									<td class="time">{formatTime(run.started_at)}</td>
+									<td><span class="badge">{run.status}</span></td>
+									<td>{formatDuration(run.duration_ms)}</td>
+									<td class="detail">{run.result_summary || '—'}</td>
 								</tr>
-							</thead>
-							<tbody>
-								{#each jobRuns[job.name] as run}
-									<tr>
-										<td class="time">{formatTime(run.started_at)}</td>
-										<td><span class="badge">{run.status}</span></td>
-										<td>{formatDuration(run.duration_ms)}</td>
-										<td class="detail">{run.result_summary || '—'}</td>
-									</tr>
-								{/each}
-							</tbody>
-						</table>
-						</div>
-					{/if}
+							{/each}
+						</tbody>
+					</table>
+					</div>
 				{/if}
-			</section>
-		{/each}
-	{/if}
-</div>
+			{/if}
+		</section>
+	{/each}
+{/if}
 
 <style>
-	.admin {
-		display: flex;
-		flex-direction: column;
-		gap: 1.5rem;
-	}
-
-	.admin-nav {
-		display: flex;
-		gap: 1.5rem;
-		border-bottom: 1px solid var(--border);
-		padding-bottom: 0.75rem;
-	}
-
-	.admin-nav a {
-		font-size: 0.8rem;
-		color: var(--fg-muted);
-		text-decoration: none;
-	}
-
-	.admin-nav a:hover,
-	.admin-nav a.active {
-		color: var(--fg);
-	}
-
 	.job-card {
 		display: flex;
 		flex-direction: column;
@@ -286,16 +240,6 @@
 		font-size: 0.8rem;
 		color: var(--fg-muted);
 		white-space: nowrap;
-	}
-
-	.result {
-		font-size: 0.8rem;
-		color: var(--fg-muted);
-	}
-
-	.status {
-		color: var(--fg-muted);
-		font-size: 0.85rem;
 	}
 
 	.last-run {
