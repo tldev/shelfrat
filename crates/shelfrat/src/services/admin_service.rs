@@ -3,6 +3,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use crate::config;
 use crate::error::AppError;
 use crate::repositories::{audit_repo, book_repo, config_repo};
 
@@ -30,21 +31,23 @@ const CONFIGURABLE_KEYS: &[&str] = &[
     "metadata_providers",
 ];
 
+const SECRET_KEYS: &[&str] = &["smtp_password", "oidc_client_secret", "hardcover_api_key"];
+
 pub async fn get_settings(db: &DatabaseConnection) -> Result<Value, AppError> {
-    let rows = config_repo::get_all(db).await?;
+    let mut settings = HashMap::new();
 
-    let settings: HashMap<String, String> = rows
-        .into_iter()
-        .filter(|r| {
-            CONFIGURABLE_KEYS.contains(&r.key.as_str())
-                && r.key != "smtp_password"
-                && r.key != "oidc_client_secret"
-                && r.key != "hardcover_api_key"
-        })
-        .map(|r| (r.key, r.value))
-        .collect();
+    for &key in CONFIGURABLE_KEYS {
+        if SECRET_KEYS.contains(&key) {
+            continue;
+        }
+        if let Some(val) = config::get(db, key).await {
+            settings.insert(key.to_string(), val);
+        }
+    }
 
-    Ok(json!({ "settings": settings }))
+    let env_locked = config::env_locked_keys();
+
+    Ok(json!({ "settings": settings, "env_locked": env_locked }))
 }
 
 pub async fn update_settings(
@@ -57,6 +60,12 @@ pub async fn update_settings(
     for (key, value) in body {
         if !CONFIGURABLE_KEYS.contains(&key.as_str()) {
             return Err(AppError::BadRequest("unknown setting key".into()));
+        }
+        if config::is_env_locked(key) {
+            let env_name = config::env_var_name(key).unwrap_or("ENV");
+            return Err(AppError::BadRequest(format!(
+                "controlled by environment variable {env_name}"
+            )));
         }
         if value.is_empty() {
             continue;
@@ -120,6 +129,14 @@ pub async fn update_job_cadence(
     seconds: u64,
 ) -> Result<Value, AppError> {
     let key = format!("job_cadence:{job_name}");
+
+    if config::is_env_locked(&key) {
+        let env_name = config::env_var_name(&key).unwrap_or("ENV");
+        return Err(AppError::BadRequest(format!(
+            "controlled by environment variable {env_name}"
+        )));
+    }
+
     config_repo::set(db, &key, &seconds.to_string()).await?;
 
     let detail = format!(

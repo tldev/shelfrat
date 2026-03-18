@@ -3,7 +3,9 @@ use std::path::Path;
 use lettre::message::{header::ContentType, Attachment, MultiPart, SinglePart};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
-use sqlx::SqlitePool;
+use sea_orm::DatabaseConnection;
+
+use crate::config;
 
 /// SMTP configuration loaded from app_config.
 #[derive(Debug, Clone)]
@@ -16,31 +18,29 @@ pub struct SmtpConfig {
     pub encryption: String, // "tls", "starttls", or "none"
 }
 
-async fn get_config(db: &SqlitePool, key: &str) -> Result<String, EmailError> {
-    sqlx::query_scalar::<_, String>("SELECT value FROM app_config WHERE key = ?")
-        .bind(key)
-        .fetch_optional(db)
-        .await
-        .map_err(|e| EmailError::Config(format!("db error: {e}")))?
-        .ok_or_else(|| EmailError::Config(format!("missing config: {key}")))
-}
-
 impl SmtpConfig {
-    /// Load SMTP config from the app_config table.
-    pub async fn from_db(db: &SqlitePool) -> Result<Self, EmailError> {
-        let host = get_config(db, "smtp_host").await?;
-        let port_str = get_config(db, "smtp_port")
+    /// Load SMTP config via the unified config module (env vars take priority over DB).
+    pub async fn from_db(db: &DatabaseConnection) -> Result<Self, EmailError> {
+        let host = config::get(db, "smtp_host")
             .await
-            .unwrap_or_else(|_| "587".to_string());
-        let port = port_str
-            .parse::<u16>()
+            .ok_or_else(|| EmailError::Config("missing config: smtp_host".into()))?;
+        let port: u16 = config::get(db, "smtp_port")
+            .await
+            .unwrap_or_else(|| "587".to_string())
+            .parse()
             .map_err(|_| EmailError::Config("invalid smtp_port".to_string()))?;
-        let user = get_config(db, "smtp_user").await?;
-        let password = get_config(db, "smtp_password").await?;
-        let from = get_config(db, "smtp_from").await?;
-        let encryption = get_config(db, "smtp_encryption")
+        let user = config::get(db, "smtp_user")
             .await
-            .unwrap_or_else(|_| "starttls".to_string());
+            .ok_or_else(|| EmailError::Config("missing config: smtp_user".into()))?;
+        let password = config::get(db, "smtp_password")
+            .await
+            .ok_or_else(|| EmailError::Config("missing config: smtp_password".into()))?;
+        let from = config::get(db, "smtp_from")
+            .await
+            .ok_or_else(|| EmailError::Config("missing config: smtp_from".into()))?;
+        let encryption = config::get(db, "smtp_encryption")
+            .await
+            .unwrap_or_else(|| "starttls".to_string());
 
         if host.is_empty() {
             return Err(EmailError::Config("smtp_host is empty".into()));

@@ -1,6 +1,7 @@
 use sea_orm::DatabaseConnection;
 use serde::Serialize;
 
+use crate::config;
 use crate::repositories::{audit_repo, config_repo, metadata_repo};
 
 /// All known provider identifiers.
@@ -20,10 +21,7 @@ pub struct ProviderInfo {
 
 /// Get the ordered list of enabled provider names from config.
 pub async fn get_enabled_providers(db: &DatabaseConnection) -> Vec<String> {
-    let raw = config_repo::get(db, "metadata_providers")
-        .await
-        .ok()
-        .flatten();
+    let raw = config::get(db, "metadata_providers").await;
 
     match raw {
         Some(json_str) => serde_json::from_str::<Vec<String>>(&json_str)
@@ -35,12 +33,7 @@ pub async fn get_enabled_providers(db: &DatabaseConnection) -> Vec<String> {
 /// Get full provider config for the admin UI.
 pub async fn get_provider_config(db: &DatabaseConnection) -> Vec<ProviderInfo> {
     let enabled = get_enabled_providers(db).await;
-    let key_set = config_repo::get(db, "hardcover_api_key")
-        .await
-        .ok()
-        .flatten()
-        .map(|k| !k.is_empty())
-        .unwrap_or(false);
+    let key_set = config::get(db, "hardcover_api_key").await.is_some();
 
     let mut result: Vec<ProviderInfo> = Vec::new();
 
@@ -88,12 +81,7 @@ pub async fn update_provider_order(
 
     // Reject hardcover if key not configured
     if providers.contains(&"hardcover".to_string()) {
-        let key_set = config_repo::get(db, "hardcover_api_key")
-            .await
-            .ok()
-            .flatten()
-            .map(|k| !k.is_empty())
-            .unwrap_or(false);
+        let key_set = config::get(db, "hardcover_api_key").await.is_some();
         if !key_set {
             return Err("configure hardcover API key before enabling".to_string());
         }

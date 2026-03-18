@@ -1,5 +1,6 @@
 services:
   shelfrat:
+    # image: ghcr.io/tldev/shelfrat:latest
     build: .
     container_name: shelfrat
     ports:
@@ -10,6 +11,7 @@ services:
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
+      - TZ=${TZ:-UTC}
       - DATABASE_URL=sqlite:/data/shelfrat.db
       - LIBRARY_PATH=/library
       - RUST_LOG=info

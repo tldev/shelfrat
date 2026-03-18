@@ -3,9 +3,9 @@ use std::path::PathBuf;
 use sea_orm::DatabaseConnection;
 use sqlx::SqlitePool;
 
+use crate::config;
 use crate::jobs::JobHandle;
 use crate::metaqueue::MetaQueue;
-use crate::repositories::config_repo;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -35,16 +35,8 @@ impl AppState {
 
     /// Resolve the library path: env var first, then app_config, then the field set at startup.
     pub async fn resolve_library_path(&self) -> Option<PathBuf> {
-        if let Ok(env_path) = std::env::var("LIBRARY_PATH") {
-            if !env_path.is_empty() {
-                return Some(PathBuf::from(env_path));
-            }
-        }
-
-        if let Ok(Some(db_path)) = config_repo::get(&self.db, "library_path").await {
-            if !db_path.is_empty() {
-                return Some(PathBuf::from(db_path));
-            }
+        if let Some(val) = config::get(&self.db, "library_path").await {
+            return Some(PathBuf::from(val));
         }
 
         self.library_path.clone()

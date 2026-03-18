@@ -137,7 +137,7 @@ async fn send_to_kindle(
         })?
     };
 
-    let smtp_config = SmtpConfig::from_db(&state.pool).await?;
+    let smtp_config = SmtpConfig::from_db(&state.db).await?;
 
     let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("book");
     let content_type = mime_for_format(&book.file_format);

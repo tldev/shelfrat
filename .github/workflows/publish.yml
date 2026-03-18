@@ -1,8 +1,9 @@
 name: Publish
 
 on:
-  push:
-    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
 
 concurrency:
   group: publish-${{ github.ref }}
@@ -53,6 +54,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -62,20 +66,24 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=sha,prefix=
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
             type=raw,value=latest
+            type=sha,prefix=
 
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Smoke test published image
+      - name: Smoke test published image (amd64)
         run: |
           SHA_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$(echo ${{ github.sha }} | head -c 7)"
           # Pull uses cached layers from the push above

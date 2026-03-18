@@ -5,9 +5,10 @@ use sea_orm::DatabaseConnection;
 use serde_json::{json, Value};
 use sqlx::SqlitePool;
 
+use crate::config;
 use crate::error::AppError;
 use crate::metaqueue::MetaQueue;
-use crate::repositories::{config_repo, metadata_repo};
+use crate::repositories::metadata_repo;
 use crate::scanner;
 
 /// Run a full library scan from an API request.
@@ -132,10 +133,8 @@ async fn queue_metadata_enrichment(
     db: &DatabaseConnection,
     meta_queue: &Option<MetaQueue>,
 ) -> usize {
-    let retry_hours: i64 = config_repo::get(db, "metadata_retry_hours")
+    let retry_hours: i64 = config::get(db, "metadata_retry_hours")
         .await
-        .ok()
-        .flatten()
         .and_then(|v| v.parse().ok())
         .unwrap_or(24);
 
@@ -164,16 +163,8 @@ async fn resolve_library_path(
     db: &DatabaseConnection,
     startup_path: &Option<PathBuf>,
 ) -> Option<PathBuf> {
-    if let Ok(env_path) = std::env::var("LIBRARY_PATH") {
-        if !env_path.is_empty() {
-            return Some(PathBuf::from(env_path));
-        }
-    }
-
-    if let Ok(Some(db_path)) = config_repo::get(db, "library_path").await {
-        if !db_path.is_empty() {
-            return Some(PathBuf::from(db_path));
-        }
+    if let Some(val) = config::get(db, "library_path").await {
+        return Some(PathBuf::from(val));
     }
 
     startup_path.clone()

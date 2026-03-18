@@ -1,6 +1,12 @@
 #!/bin/sh
 set -e
 
+# Timezone
+if [ -n "$TZ" ] && [ -f "/usr/share/zoneinfo/$TZ" ]; then
+    ln -sf "/usr/share/zoneinfo/$TZ" /etc/localtime
+    echo "$TZ" > /etc/timezone
+fi
+
 PUID=${PUID:-1000}
 PGID=${PGID:-1000}
 

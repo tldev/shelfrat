@@ -7,7 +7,7 @@ use tokio::sync::mpsc;
 
 use crate::provider_error::EnrichError;
 use crate::rate_limiter::RateLimiters;
-use crate::repositories::{config_repo, metadata_repo};
+use crate::repositories::metadata_repo;
 use crate::services::{metadata_service, provider_service};
 
 const MAX_RATE_LIMITS_PER_BATCH: u32 = 5;
@@ -174,10 +174,8 @@ async fn process_book(
                 .await
             }
             "hardcover" => {
-                let api_key = config_repo::get(db, "hardcover_api_key")
+                let api_key = crate::config::get(db, "hardcover_api_key")
                     .await
-                    .ok()
-                    .flatten()
                     .unwrap_or_default();
                 if api_key.is_empty() {
                     tracing::warn!("metaqueue: hardcover enabled but no API key configured");

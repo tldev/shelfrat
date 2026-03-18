@@ -27,7 +27,7 @@ RUN cargo build --release
 # Stage 3: Runtime
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y libsqlite3-0 ca-certificates curl gosu && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y libsqlite3-0 ca-certificates curl gosu tzdata && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -u 1000 -U -s /bin/false -m shelf
 
@@ -44,10 +44,16 @@ ENV HOST=0.0.0.0
 ENV PORT=3000
 ENV WEB_DIR=web/build
 ENV RUST_LOG=info
+ENV TZ=UTC
 
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:3000/api/v1/health || exit 1
+
+LABEL org.opencontainers.image.title="shelfrat"
+LABEL org.opencontainers.image.description="Self-hosted ebook library management"
+LABEL org.opencontainers.image.source="https://github.com/tldev/shelfrat"
+LABEL org.opencontainers.image.licenses="MIT"
 
 ENTRYPOINT ["./entrypoint.sh"]

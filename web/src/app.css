@@ -156,6 +156,26 @@ h3 { font-size: 1rem; }
 	-webkit-overflow-scrolling: touch;
 }
 
+.hint {
+	font-size: 0.75rem;
+	color: var(--fg-muted);
+}
+
+.env-hint {
+	font-style: italic;
+}
+
+.field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+}
+
+.result {
+	font-size: 0.8rem;
+	color: var(--fg-muted);
+}
+
 @media (max-width: 640px) {
 	html {
 		font-size: 13px;
