@@ -39,6 +39,7 @@ jobs:
             docker
             ci
             deps
+            main
           requireScope: false
 
   # ── Backend ────────────────────────────────────────────────────────
