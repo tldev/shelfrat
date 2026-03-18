@@ -3,8 +3,8 @@ use serde_json::{json, Value};
 use uuid::Uuid;
 
 use crate::error::AppError;
-use crate::repositories::{audit_repo, user_repo};
 use crate::repositories::user_repo::UserColumn;
+use crate::repositories::{audit_repo, user_repo};
 use crate::services::auth_service;
 
 pub async fn list_users(db: &DatabaseConnection) -> Result<Value, AppError> {

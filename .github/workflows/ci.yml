@@ -1,0 +1,166 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -Dwarnings
+
+jobs:
+  # ── Backend ────────────────────────────────────────────────────────
+  backend-lint:
+    name: Backend lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features
+
+  backend-test:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run tests
+        run: cargo test --all
+
+  # ── Frontend ───────────────────────────────────────────────────────
+  frontend-lint:
+    name: Frontend lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: Svelte check (type check + lint)
+        run: npm run check
+
+  frontend-test:
+    name: Frontend tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: Run tests
+        run: npx vitest run
+
+  # ── Security ───────────────────────────────────────────────────────
+  security-audit:
+    name: Cargo audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: Audit dependencies
+        run: cargo audit --ignore RUSTSEC-2023-0071
+
+  security-deny:
+    name: Cargo deny (licenses + supply chain)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+
+  security-npm-audit:
+    name: npm audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Audit dependencies
+        run: npm audit --omit=dev
+
+  security-trivy:
+    name: Trivy vulnerability scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image for scanning
+        run: docker build -t shelfrat:scan .
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: shelfrat:scan
+          format: table
+          exit-code: 1
+          severity: CRITICAL
+          ignore-unfixed: true
+
+  security-codeql:
+    name: CodeQL analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+  # ── Docker build smoke test ────────────────────────────────────────
+  docker-build:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t shelfrat:test .
+      - name: Smoke test — health endpoint
+        run: |
+          docker run -d --name shelfrat-test -p 3000:3000 shelfrat:test
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000/api/v1/health; then
+              echo ""
+              echo "Health check passed"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Health check timed out"
+          docker logs shelfrat-test
+          exit 1
+      - name: Cleanup
+        if: always()
+        run: docker rm -f shelfrat-test 2>/dev/null || true

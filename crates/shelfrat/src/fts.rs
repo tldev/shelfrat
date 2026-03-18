@@ -73,11 +73,9 @@ pub async fn rebuild_fts_index(db: &SqlitePool) -> Result<u64, sqlx::Error> {
     sqlx::query("DELETE FROM books_fts").execute(db).await?;
 
     // Get all non-missing book IDs
-    let book_ids = sqlx::query_scalar::<_, i64>(
-        "SELECT id FROM books WHERE missing = 0",
-    )
-    .fetch_all(db)
-    .await?;
+    let book_ids = sqlx::query_scalar::<_, i64>("SELECT id FROM books WHERE missing = 0")
+        .fetch_all(db)
+        .await?;
 
     let count = book_ids.len() as u64;
 

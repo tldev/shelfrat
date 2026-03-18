@@ -18,12 +18,12 @@
 	let loadingRuns: Record<string, boolean> = $state({});
 	let pollInterval: ReturnType<typeof setInterval> | null = null;
 
-	onMount(async () => {
+	onMount(() => {
 		if (!auth.isAdmin) {
 			goto('/');
 			return;
 		}
-		await loadJobs();
+		loadJobs();
 
 		return () => {
 			if (pollInterval) clearInterval(pollInterval);

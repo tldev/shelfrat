@@ -41,10 +41,7 @@ async fn login(
     })))
 }
 
-async fn me(
-    auth_user: AuthUser,
-    State(state): State<AppState>,
-) -> Result<Json<Value>, AppError> {
+async fn me(auth_user: AuthUser, State(state): State<AppState>) -> Result<Json<Value>, AppError> {
     let user = user_repo::find_by_id(&state.db, auth_user.id)
         .await?
         .ok_or(AppError::NotFound)?;

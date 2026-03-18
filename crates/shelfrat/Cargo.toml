@@ -5,6 +5,10 @@ edition.workspace = true
 license.workspace = true
 default-run = "shelfrat"
 
+[lib]
+name = "shelfrat"
+path = "src/lib.rs"
+
 [[bin]]
 name = "shelfrat"
 path = "src/main.rs"

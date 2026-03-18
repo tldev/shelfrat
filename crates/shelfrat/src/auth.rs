@@ -152,3 +152,84 @@ impl FromRequestParts<AppState> for AdminUser {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::Method;
+    use axum::response::IntoResponse;
+
+    // ── AuthError::into_response ───────────────────────────────────
+
+    #[test]
+    fn auth_error_missing_token_returns_401() {
+        let resp = AuthError::MissingToken.into_response();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[test]
+    fn auth_error_invalid_token_returns_401() {
+        let resp = AuthError::InvalidToken("expired".to_string()).into_response();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[test]
+    fn auth_error_forbidden_returns_403() {
+        let resp = AuthError::Forbidden.into_response();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[test]
+    fn auth_error_internal_returns_500() {
+        let resp = AuthError::Internal("db down".to_string()).into_response();
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    // ── extract_bearer_token ───────────────────────────────────────
+
+    fn make_parts(auth_header: Option<&str>) -> Parts {
+        let mut builder = axum::http::Request::builder()
+            .method(Method::GET)
+            .uri("/test");
+        if let Some(val) = auth_header {
+            builder = builder.header("authorization", val);
+        }
+        let req = builder.body(()).unwrap();
+        req.into_parts().0
+    }
+
+    #[test]
+    fn extract_bearer_token_valid() {
+        let parts = make_parts(Some("Bearer my_token_123"));
+        let token = extract_bearer_token(&parts).unwrap();
+        assert_eq!(token, "my_token_123");
+    }
+
+    #[test]
+    fn extract_bearer_token_missing_header() {
+        let parts = make_parts(None);
+        let result = extract_bearer_token(&parts);
+        assert!(matches!(result, Err(AuthError::MissingToken)));
+    }
+
+    #[test]
+    fn extract_bearer_token_wrong_scheme() {
+        let parts = make_parts(Some("Basic abc123"));
+        let result = extract_bearer_token(&parts);
+        assert!(matches!(result, Err(AuthError::MissingToken)));
+    }
+
+    #[test]
+    fn extract_bearer_token_empty_bearer() {
+        let parts = make_parts(Some("Bearer "));
+        let token = extract_bearer_token(&parts).unwrap();
+        assert_eq!(token, "");
+    }
+
+    #[test]
+    fn extract_bearer_token_no_space_after_bearer() {
+        let parts = make_parts(Some("Bearertoken"));
+        let result = extract_bearer_token(&parts);
+        assert!(matches!(result, Err(AuthError::MissingToken)));
+    }
+}

@@ -18,13 +18,15 @@ pub async fn apply_extracted_metadata(
         metadata_repo::update_if_null(db, book_id, MetadataColumn::Title, title).await?;
     }
     if let Some(ref description) = meta.description {
-        metadata_repo::update_if_null(db, book_id, MetadataColumn::Description, description).await?;
+        metadata_repo::update_if_null(db, book_id, MetadataColumn::Description, description)
+            .await?;
     }
     if let Some(ref publisher) = meta.publisher {
         metadata_repo::update_if_null(db, book_id, MetadataColumn::Publisher, publisher).await?;
     }
     if let Some(ref published_date) = meta.published_date {
-        metadata_repo::update_if_null(db, book_id, MetadataColumn::PublishedDate, published_date).await?;
+        metadata_repo::update_if_null(db, book_id, MetadataColumn::PublishedDate, published_date)
+            .await?;
     }
     if let Some(ref language) = meta.language {
         metadata_repo::update_if_null(db, book_id, MetadataColumn::Language, language).await?;

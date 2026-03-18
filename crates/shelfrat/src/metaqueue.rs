@@ -61,7 +61,11 @@ async fn worker(
 
         tracing::info!("metaqueue: processing batch of {} books", batch.len());
         for (i, id) in batch.iter().enumerate() {
-            tracing::info!("metaqueue: [{}/{}] processing book {id}", i + 1, batch.len());
+            tracing::info!(
+                "metaqueue: [{}/{}] processing book {id}",
+                i + 1,
+                batch.len()
+            );
             process_book(&pool, &db, *id, &covers_dir).await;
         }
         tracing::info!("metaqueue: batch complete");
@@ -93,21 +97,25 @@ async fn process_book(
 
     // Try external providers until the book is fully enriched
     for &provider in PROVIDERS {
-        if !metadata_repo::needs_enrichment(db, book_id).await.unwrap_or(false) {
+        if !metadata_repo::needs_enrichment(db, book_id)
+            .await
+            .unwrap_or(false)
+        {
             break;
         }
-        if metadata_repo::provider_attempted(db, book_id, provider).await.unwrap_or(false) {
+        if metadata_repo::provider_attempted(db, book_id, provider)
+            .await
+            .unwrap_or(false)
+        {
             continue;
         }
 
         let result = match provider {
             "openlibrary" => {
-                metadata_service::enrich_from_openlibrary(db, pool, book_id, Some(covers_dir))
-                    .await
+                metadata_service::enrich_from_openlibrary(db, pool, book_id, Some(covers_dir)).await
             }
             "googlebooks" => {
-                metadata_service::enrich_from_googlebooks(db, pool, book_id, Some(covers_dir))
-                    .await
+                metadata_service::enrich_from_googlebooks(db, pool, book_id, Some(covers_dir)).await
             }
             _ => {
                 tracing::warn!("metaqueue: unknown provider {provider}");
@@ -116,7 +124,9 @@ async fn process_book(
         };
 
         if let Err(e) = metadata_repo::record_provider_attempt(db, book_id, provider).await {
-            tracing::warn!("metaqueue: failed to record {provider} attempt for book {book_id}: {e}");
+            tracing::warn!(
+                "metaqueue: failed to record {provider} attempt for book {book_id}: {e}"
+            );
         }
 
         match result {

@@ -70,9 +70,8 @@ pub async fn update_if_null(
     value: &str,
 ) -> Result<(), DbErr> {
     let column = field.as_str();
-    let sql = format!(
-        "UPDATE book_metadata SET {column} = ? WHERE book_id = ? AND {column} IS NULL"
-    );
+    let sql =
+        format!("UPDATE book_metadata SET {column} = ? WHERE book_id = ? AND {column} IS NULL");
     db.execute(Statement::from_sql_and_values(
         DatabaseBackend::Sqlite,
         &sql,
@@ -283,33 +282,6 @@ pub async fn books_needing_metadata(
     Ok(rows.into_iter().map(|r| r.id).collect())
 }
 
-/// Save a cover image to disk and return the full path.
-pub fn save_cover(
-    book_id: i64,
-    data: &[u8],
-    covers_dir: &Path,
-) -> Result<std::path::PathBuf, std::io::Error> {
-    std::fs::create_dir_all(covers_dir)?;
-
-    let ext = if data.starts_with(&[0x89, 0x50, 0x4E, 0x47]) {
-        "png"
-    } else if data.starts_with(&[0xFF, 0xD8]) {
-        "jpg"
-    } else if data.starts_with(b"GIF") {
-        "gif"
-    } else if data.starts_with(b"RIFF") && data.len() > 12 && &data[8..12] == b"WEBP" {
-        "webp"
-    } else {
-        "jpg"
-    };
-
-    let filename = format!("{book_id}.{ext}");
-    let full_path = covers_dir.join(&filename);
-    std::fs::write(&full_path, data)?;
-
-    Ok(full_path)
-}
-
 /// Import scanned files into the database.
 /// This remains using raw SqlitePool because it needs transaction support and bulk operations.
 pub async fn import_scanned_files(
@@ -329,13 +301,12 @@ pub async fn import_scanned_files(
     for file in files {
         let file_path_str = file.path.to_string_lossy().to_string();
 
-        let existing_by_path = sqlx::query_scalar::<_, i64>(
-            "SELECT id FROM books WHERE file_path = ?",
-        )
-        .bind(&file_path_str)
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
+        let existing_by_path =
+            sqlx::query_scalar::<_, i64>("SELECT id FROM books WHERE file_path = ?")
+                .bind(&file_path_str)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
 
         if let Some(book_id) = existing_by_path {
             sqlx::query(
@@ -351,13 +322,12 @@ pub async fn import_scanned_files(
             continue;
         }
 
-        let existing_by_hash = sqlx::query_scalar::<_, i64>(
-            "SELECT id FROM books WHERE file_hash = ?",
-        )
-        .bind(&file.hash)
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
+        let existing_by_hash =
+            sqlx::query_scalar::<_, i64>("SELECT id FROM books WHERE file_hash = ?")
+                .bind(&file.hash)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
 
         if let Some(book_id) = existing_by_hash {
             sqlx::query(
@@ -433,4 +403,163 @@ pub async fn import_scanned_files(
         skipped,
         total_scanned: files.len() as u64,
     })
+}
+
+/// Save a cover image to disk and return the full path.
+pub fn save_cover(
+    book_id: i64,
+    data: &[u8],
+    covers_dir: &Path,
+) -> Result<std::path::PathBuf, std::io::Error> {
+    std::fs::create_dir_all(covers_dir)?;
+
+    let ext = if data.starts_with(&[0x89, 0x50, 0x4E, 0x47]) {
+        "png"
+    } else if data.starts_with(&[0xFF, 0xD8]) {
+        "jpg"
+    } else if data.starts_with(b"GIF") {
+        "gif"
+    } else if data.starts_with(b"RIFF") && data.len() > 12 && &data[8..12] == b"WEBP" {
+        "webp"
+    } else {
+        "jpg"
+    };
+
+    let filename = format!("{book_id}.{ext}");
+    let full_path = covers_dir.join(&filename);
+    std::fs::write(&full_path, data)?;
+
+    Ok(full_path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── MetadataColumn::as_str ─────────────────────────────────────
+
+    #[test]
+    fn metadata_column_title() {
+        assert_eq!(MetadataColumn::Title.as_str(), "title");
+    }
+
+    #[test]
+    fn metadata_column_description() {
+        assert_eq!(MetadataColumn::Description.as_str(), "description");
+    }
+
+    #[test]
+    fn metadata_column_publisher() {
+        assert_eq!(MetadataColumn::Publisher.as_str(), "publisher");
+    }
+
+    #[test]
+    fn metadata_column_published_date() {
+        assert_eq!(MetadataColumn::PublishedDate.as_str(), "published_date");
+    }
+
+    #[test]
+    fn metadata_column_language() {
+        assert_eq!(MetadataColumn::Language.as_str(), "language");
+    }
+
+    #[test]
+    fn metadata_column_isbn10() {
+        assert_eq!(MetadataColumn::Isbn10.as_str(), "isbn_10");
+    }
+
+    #[test]
+    fn metadata_column_isbn13() {
+        assert_eq!(MetadataColumn::Isbn13.as_str(), "isbn_13");
+    }
+
+    // ── save_cover ─────────────────────────────────────────────────
+
+    /// Create a unique temp directory for each test to avoid race conditions.
+    fn covers_dir(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join("shelfrat_test_covers").join(name);
+        let _ = std::fs::remove_dir_all(&dir);
+        dir
+    }
+
+    #[test]
+    fn save_cover_png_detected() {
+        let dir = covers_dir("png");
+        // PNG magic bytes: 0x89 0x50 0x4E 0x47
+        let data = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0xFF, 0xFF];
+        let path = save_cover(1, &data, &dir).unwrap();
+        assert!(path.to_string_lossy().ends_with("1.png"));
+        assert!(path.is_file());
+        assert_eq!(std::fs::read(&path).unwrap(), data);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn save_cover_jpg_detected() {
+        let dir = covers_dir("jpg");
+        // JPEG magic bytes: 0xFF 0xD8
+        let data = vec![0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10];
+        let path = save_cover(2, &data, &dir).unwrap();
+        assert!(path.to_string_lossy().ends_with("2.jpg"));
+        assert!(path.is_file());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn save_cover_gif_detected() {
+        let dir = covers_dir("gif");
+        // GIF magic bytes: "GIF"
+        let data = b"GIF89a\x01\x00\x01\x00".to_vec();
+        let path = save_cover(3, &data, &dir).unwrap();
+        assert!(path.to_string_lossy().ends_with("3.gif"));
+        assert!(path.is_file());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn save_cover_webp_detected() {
+        let dir = covers_dir("webp");
+        // WEBP: starts with "RIFF", then 4 bytes, then "WEBP"
+        let mut data = b"RIFF".to_vec();
+        data.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]); // file size
+        data.extend_from_slice(b"WEBP");
+        data.extend_from_slice(&[0x00; 10]); // some payload
+        let path = save_cover(4, &data, &dir).unwrap();
+        assert!(path.to_string_lossy().ends_with("4.webp"));
+        assert!(path.is_file());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn save_cover_unknown_falls_back_to_jpg() {
+        let dir = covers_dir("unknown");
+        let data = vec![0x00, 0x01, 0x02, 0x03];
+        let path = save_cover(5, &data, &dir).unwrap();
+        assert!(path.to_string_lossy().ends_with("5.jpg"));
+        assert!(path.is_file());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn save_cover_creates_directory() {
+        let dir = covers_dir("nested_create");
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(!dir.exists());
+
+        let data = vec![0xFF, 0xD8, 0xFF];
+        let path = save_cover(6, &data, &dir).unwrap();
+        assert!(dir.exists());
+        assert!(path.is_file());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn save_cover_file_content_matches() {
+        let dir = covers_dir("content");
+        let data = vec![0x89, 0x50, 0x4E, 0x47, 0xAA, 0xBB, 0xCC];
+        let path = save_cover(7, &data, &dir).unwrap();
+        let read_back = std::fs::read(&path).unwrap();
+        assert_eq!(data, read_back);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

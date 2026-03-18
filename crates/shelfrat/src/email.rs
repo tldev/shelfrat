@@ -29,14 +29,18 @@ impl SmtpConfig {
     /// Load SMTP config from the app_config table.
     pub async fn from_db(db: &SqlitePool) -> Result<Self, EmailError> {
         let host = get_config(db, "smtp_host").await?;
-        let port_str = get_config(db, "smtp_port").await.unwrap_or_else(|_| "587".to_string());
+        let port_str = get_config(db, "smtp_port")
+            .await
+            .unwrap_or_else(|_| "587".to_string());
         let port = port_str
             .parse::<u16>()
             .map_err(|_| EmailError::Config("invalid smtp_port".to_string()))?;
         let user = get_config(db, "smtp_user").await?;
         let password = get_config(db, "smtp_password").await?;
         let from = get_config(db, "smtp_from").await?;
-        let encryption = get_config(db, "smtp_encryption").await.unwrap_or_else(|_| "starttls".to_string());
+        let encryption = get_config(db, "smtp_encryption")
+            .await
+            .unwrap_or_else(|_| "starttls".to_string());
 
         if host.is_empty() {
             return Err(EmailError::Config("smtp_host is empty".into()));
@@ -71,8 +75,7 @@ pub async fn send_book_email(
     let content_type = ContentType::parse(content_type_str)
         .unwrap_or(ContentType::parse("application/octet-stream").expect("hardcoded MIME type"));
 
-    let attachment = Attachment::new(filename.to_string())
-        .body(file_data, content_type);
+    let attachment = Attachment::new(filename.to_string()).body(file_data, content_type);
 
     let email = Message::builder()
         .from(
@@ -106,9 +109,7 @@ pub async fn send_book_email(
     Ok(())
 }
 
-fn build_transport(
-    config: &SmtpConfig,
-) -> Result<AsyncSmtpTransport<Tokio1Executor>, EmailError> {
+fn build_transport(config: &SmtpConfig) -> Result<AsyncSmtpTransport<Tokio1Executor>, EmailError> {
     let creds = Credentials::new(config.user.clone(), config.password.clone());
 
     let transport = match config.encryption.as_str() {
@@ -157,6 +158,49 @@ impl From<EmailError> for crate::error::AppError {
             }
             EmailError::Io(msg) => crate::error::AppError::Internal(msg),
             EmailError::Send(msg) => crate::error::AppError::Internal(msg),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── EmailError → AppError conversion ───────────────────────────
+
+    #[test]
+    fn config_error_becomes_bad_request() {
+        let err = EmailError::Config("missing host".to_string());
+        let app_err: crate::error::AppError = err.into();
+        match app_err {
+            crate::error::AppError::BadRequest(msg) => {
+                assert!(msg.contains("email is not configured"));
+            }
+            other => panic!("expected BadRequest, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn io_error_becomes_internal() {
+        let err = EmailError::Io("cannot read file".to_string());
+        let app_err: crate::error::AppError = err.into();
+        match app_err {
+            crate::error::AppError::Internal(msg) => {
+                assert_eq!(msg, "cannot read file");
+            }
+            other => panic!("expected Internal, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn send_error_becomes_internal() {
+        let err = EmailError::Send("SMTP failed".to_string());
+        let app_err: crate::error::AppError = err.into();
+        match app_err {
+            crate::error::AppError::Internal(msg) => {
+                assert_eq!(msg, "SMTP failed");
+            }
+            other => panic!("expected Internal, got: {other:?}"),
         }
     }
 }

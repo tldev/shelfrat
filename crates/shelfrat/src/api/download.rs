@@ -46,10 +46,7 @@ async fn download_book(
         .map_err(|e| AppError::Internal(format!("cannot read file metadata: {e}")))?;
 
     let content_type = mime_for_format(&book.file_format);
-    let filename = path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("book");
+    let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("book");
 
     let stream = ReaderStream::new(file);
     let body = Body::from_stream(stream);
@@ -132,21 +129,17 @@ async fn send_to_kindle(
         let u = user_repo::find_by_id(&state.db, user.id)
             .await?
             .ok_or(AppError::NotFound)?;
-        u.kindle_email
-            .filter(|e| !e.is_empty())
-            .ok_or_else(|| {
-                AppError::BadRequest(
-                    "no kindle email configured — set it in your profile or provide 'email' in request".into(),
-                )
-            })?
+        u.kindle_email.filter(|e| !e.is_empty()).ok_or_else(|| {
+            AppError::BadRequest(
+                "no kindle email configured — set it in your profile or provide 'email' in request"
+                    .into(),
+            )
+        })?
     };
 
     let smtp_config = SmtpConfig::from_db(&state.pool).await?;
 
-    let filename = path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("book");
+    let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("book");
     let content_type = mime_for_format(&book.file_format);
 
     email::send_book_email(&smtp_config, &to_email, filename, path, content_type).await?;
@@ -155,7 +148,10 @@ async fn send_to_kindle(
         &state.db,
         Some(user.id),
         "book_sent",
-        Some(&format!("user {} sent book {} to {}", user.username, id, to_email)),
+        Some(&format!(
+            "user {} sent book {} to {}",
+            user.username, id, to_email
+        )),
     )
     .await?;
 
@@ -197,5 +193,137 @@ fn mime_for_format(format: &str) -> &'static str {
         "djvu" => "image/vnd.djvu",
         "txt" => "text/plain; charset=utf-8",
         _ => "application/octet-stream",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── sanitize_filename ──────────────────────────────────────────
+
+    #[test]
+    fn sanitize_filename_normal() {
+        assert_eq!(sanitize_filename("book.epub"), "book.epub");
+    }
+
+    #[test]
+    fn sanitize_filename_strips_control_chars() {
+        assert_eq!(sanitize_filename("bo\x00ok\x1F.epub"), "book.epub");
+    }
+
+    #[test]
+    fn sanitize_filename_replaces_quotes_and_backslash() {
+        assert_eq!(sanitize_filename("my\"book\\.epub"), "my_book_.epub");
+    }
+
+    #[test]
+    fn sanitize_filename_mixed() {
+        assert_eq!(
+            sanitize_filename("a\x01\"b\\c\x7f"),
+            "a_b_c" // \x7f is a control char (DEL)
+        );
+    }
+
+    #[test]
+    fn sanitize_filename_empty() {
+        assert_eq!(sanitize_filename(""), "");
+    }
+
+    #[test]
+    fn sanitize_filename_all_normal() {
+        let name = "My Book (2024) - Author.epub";
+        assert_eq!(sanitize_filename(name), name);
+    }
+
+    // ── mime_for_format ────────────────────────────────────────────
+
+    #[test]
+    fn mime_epub() {
+        assert_eq!(mime_for_format("epub"), "application/epub+zip");
+    }
+
+    #[test]
+    fn mime_pdf() {
+        assert_eq!(mime_for_format("pdf"), "application/pdf");
+    }
+
+    #[test]
+    fn mime_mobi() {
+        assert_eq!(mime_for_format("mobi"), "application/x-mobipocket-ebook");
+    }
+
+    #[test]
+    fn mime_azw() {
+        assert_eq!(mime_for_format("azw"), "application/vnd.amazon.ebook");
+    }
+
+    #[test]
+    fn mime_azw3() {
+        assert_eq!(mime_for_format("azw3"), "application/vnd.amazon.ebook");
+    }
+
+    #[test]
+    fn mime_fb2() {
+        assert_eq!(mime_for_format("fb2"), "application/x-fictionbook+xml");
+    }
+
+    #[test]
+    fn mime_cbz() {
+        assert_eq!(mime_for_format("cbz"), "application/x-cbz");
+    }
+
+    #[test]
+    fn mime_cbr() {
+        assert_eq!(mime_for_format("cbr"), "application/x-cbr");
+    }
+
+    #[test]
+    fn mime_djvu() {
+        assert_eq!(mime_for_format("djvu"), "image/vnd.djvu");
+    }
+
+    #[test]
+    fn mime_txt() {
+        assert_eq!(mime_for_format("txt"), "text/plain; charset=utf-8");
+    }
+
+    #[test]
+    fn mime_unknown() {
+        assert_eq!(mime_for_format("xyz"), "application/octet-stream");
+        assert_eq!(mime_for_format(""), "application/octet-stream");
+    }
+
+    // ── mime_for_image_ext ─────────────────────────────────────────
+
+    #[test]
+    fn image_jpg() {
+        assert_eq!(mime_for_image_ext("jpg"), "image/jpeg");
+    }
+
+    #[test]
+    fn image_jpeg() {
+        assert_eq!(mime_for_image_ext("jpeg"), "image/jpeg");
+    }
+
+    #[test]
+    fn image_png() {
+        assert_eq!(mime_for_image_ext("png"), "image/png");
+    }
+
+    #[test]
+    fn image_gif() {
+        assert_eq!(mime_for_image_ext("gif"), "image/gif");
+    }
+
+    #[test]
+    fn image_webp() {
+        assert_eq!(mime_for_image_ext("webp"), "image/webp");
+    }
+
+    #[test]
+    fn image_unknown() {
+        assert_eq!(mime_for_image_ext("bmp"), "application/octet-stream");
+        assert_eq!(mime_for_image_ext(""), "application/octet-stream");
     }
 }

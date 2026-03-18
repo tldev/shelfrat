@@ -84,19 +84,18 @@ pub async fn run_library_scan_job(
     tracing::info!("job: starting library scan: {}", library_path.display());
 
     let lib_path_clone = library_path.clone();
-    let files = match tokio::task::spawn_blocking(move || scanner::scan_directory(&lib_path_clone))
-        .await
-    {
-        Ok(Ok(files)) => files,
-        Ok(Err(e)) => {
-            scanner::SCAN_IN_PROGRESS.store(false, Ordering::SeqCst);
-            return Err(format!("scan error: {e}"));
-        }
-        Err(e) => {
-            scanner::SCAN_IN_PROGRESS.store(false, Ordering::SeqCst);
-            return Err(format!("scan task panicked: {e}"));
-        }
-    };
+    let files =
+        match tokio::task::spawn_blocking(move || scanner::scan_directory(&lib_path_clone)).await {
+            Ok(Ok(files)) => files,
+            Ok(Err(e)) => {
+                scanner::SCAN_IN_PROGRESS.store(false, Ordering::SeqCst);
+                return Err(format!("scan error: {e}"));
+            }
+            Err(e) => {
+                scanner::SCAN_IN_PROGRESS.store(false, Ordering::SeqCst);
+                return Err(format!("scan task panicked: {e}"));
+            }
+        };
 
     let result = match metadata_repo::import_scanned_files(pool, &files, true).await {
         Ok(r) => r,
