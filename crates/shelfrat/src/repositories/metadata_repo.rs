@@ -70,9 +70,8 @@ pub async fn update_if_null(
     value: &str,
 ) -> Result<(), DbErr> {
     let column = field.as_str();
-    let sql = format!(
-        "UPDATE book_metadata SET {column} = ? WHERE book_id = ? AND {column} IS NULL"
-    );
+    let sql =
+        format!("UPDATE book_metadata SET {column} = ? WHERE book_id = ? AND {column} IS NULL");
     db.execute(Statement::from_sql_and_values(
         DatabaseBackend::Sqlite,
         &sql,
@@ -355,9 +354,7 @@ mod tests {
 
     /// Create a unique temp directory for each test to avoid race conditions.
     fn covers_dir(name: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir()
-            .join("shelfrat_test_covers")
-            .join(name);
+        let dir = std::env::temp_dir().join("shelfrat_test_covers").join(name);
         let _ = std::fs::remove_dir_all(&dir);
         dir
     }
@@ -463,13 +460,12 @@ pub async fn import_scanned_files(
     for file in files {
         let file_path_str = file.path.to_string_lossy().to_string();
 
-        let existing_by_path = sqlx::query_scalar::<_, i64>(
-            "SELECT id FROM books WHERE file_path = ?",
-        )
-        .bind(&file_path_str)
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
+        let existing_by_path =
+            sqlx::query_scalar::<_, i64>("SELECT id FROM books WHERE file_path = ?")
+                .bind(&file_path_str)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
 
         if let Some(book_id) = existing_by_path {
             sqlx::query(
@@ -485,13 +481,12 @@ pub async fn import_scanned_files(
             continue;
         }
 
-        let existing_by_hash = sqlx::query_scalar::<_, i64>(
-            "SELECT id FROM books WHERE file_hash = ?",
-        )
-        .bind(&file.hash)
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
+        let existing_by_hash =
+            sqlx::query_scalar::<_, i64>("SELECT id FROM books WHERE file_hash = ?")
+                .bind(&file.hash)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|e| crate::scanner::ScanError::Database(e.to_string()))?;
 
         if let Some(book_id) = existing_by_hash {
             sqlx::query(

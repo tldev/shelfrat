@@ -1,4 +1,6 @@
-use shelfrat::repositories::{audit_repo, book_repo, config_repo, job_repo, metadata_repo, user_repo};
+use shelfrat::repositories::{
+    audit_repo, book_repo, config_repo, job_repo, metadata_repo, user_repo,
+};
 use shelfrat::scanner::ScannedFile;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -222,9 +224,7 @@ async fn user_count_by_username() {
         .await
         .unwrap();
     assert_eq!(count, 1);
-    let count_none = user_repo::count_by_username(&db, "nobody")
-        .await
-        .unwrap();
+    let count_none = user_repo::count_by_username(&db, "nobody").await.unwrap();
     assert_eq!(count_none, 0);
 }
 
@@ -265,7 +265,10 @@ async fn user_register_invite_updates_user() {
     .await
     .unwrap();
 
-    let updated = user_repo::find_by_id(&db, pending.id).await.unwrap().unwrap();
+    let updated = user_repo::find_by_id(&db, pending.id)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(updated.username, "registered_user");
     assert_eq!(updated.email, "reg@example.com");
     assert_eq!(updated.password_hash, "secure_hash");
@@ -278,9 +281,14 @@ async fn user_update_field_display_name() {
     let user = user_repo::create_admin(&db, "updater", "u@ex.com", "h")
         .await
         .unwrap();
-    user_repo::update_field(&db, user.id, user_repo::UserColumn::DisplayName, "Cool Name")
-        .await
-        .unwrap();
+    user_repo::update_field(
+        &db,
+        user.id,
+        user_repo::UserColumn::DisplayName,
+        "Cool Name",
+    )
+    .await
+    .unwrap();
     let found = user_repo::find_by_id(&db, user.id).await.unwrap().unwrap();
     assert_eq!(found.display_name, Some("Cool Name".to_string()));
 }
@@ -341,7 +349,9 @@ async fn user_update_role() {
         .await
         .unwrap();
     assert_eq!(user.role, "admin");
-    user_repo::update_role(&db, user.id, "member").await.unwrap();
+    user_repo::update_role(&db, user.id, "member")
+        .await
+        .unwrap();
     let found = user_repo::find_by_id(&db, user.id).await.unwrap().unwrap();
     assert_eq!(found.role, "member");
 }
@@ -459,9 +469,15 @@ async fn audit_query_no_filters_returns_all() {
 #[tokio::test]
 async fn audit_query_with_action_filter() {
     let (_pool, db) = setup_test_db().await;
-    audit_repo::log_action(&db, None, "login", None).await.unwrap();
-    audit_repo::log_action(&db, None, "login", None).await.unwrap();
-    audit_repo::log_action(&db, None, "logout", None).await.unwrap();
+    audit_repo::log_action(&db, None, "login", None)
+        .await
+        .unwrap();
+    audit_repo::log_action(&db, None, "login", None)
+        .await
+        .unwrap();
+    audit_repo::log_action(&db, None, "logout", None)
+        .await
+        .unwrap();
 
     let (rows, total) = audit_repo::query_with_filters(&db, Some("login"), None, 100, 0)
         .await
@@ -574,7 +590,9 @@ async fn job_create_run_and_last_run() {
 #[tokio::test]
 async fn job_is_running_true_for_running_job() {
     let (_pool, db) = setup_test_db().await;
-    job_repo::create_run(&db, "running_job", None).await.unwrap();
+    job_repo::create_run(&db, "running_job", None)
+        .await
+        .unwrap();
     let running = job_repo::is_running(&db, "running_job").await.unwrap();
     assert!(running);
 }
@@ -582,9 +600,7 @@ async fn job_is_running_true_for_running_job() {
 #[tokio::test]
 async fn job_is_running_false_after_finish() {
     let (_pool, db) = setup_test_db().await;
-    let run_id = job_repo::create_run(&db, "finish_job", None)
-        .await
-        .unwrap();
+    let run_id = job_repo::create_run(&db, "finish_job", None).await.unwrap();
     job_repo::finish_run(&db, run_id, "completed", "\"ok\"")
         .await
         .unwrap();
@@ -650,17 +666,12 @@ async fn job_last_finished_at_returns_correct_timestamp() {
 #[tokio::test]
 async fn job_cleanup_stale_marks_running_as_failed() {
     let (_pool, db) = setup_test_db().await;
-    let run_id = job_repo::create_run(&db, "stale_job", None)
-        .await
-        .unwrap();
+    let run_id = job_repo::create_run(&db, "stale_job", None).await.unwrap();
     assert!(job_repo::is_running(&db, "stale_job").await.unwrap());
 
     job_repo::cleanup_stale(&db).await.unwrap();
 
-    let run = job_repo::last_run(&db, "stale_job")
-        .await
-        .unwrap()
-        .unwrap();
+    let run = job_repo::last_run(&db, "stale_job").await.unwrap().unwrap();
     assert_eq!(run.id, run_id);
     assert_eq!(run.status, "failed");
     assert!(run.finished_at.is_some());
@@ -1354,10 +1365,12 @@ async fn import_scanned_files_updates_existing_by_hash() {
     assert_eq!(r2.updated, 1);
 
     // Verify the path was updated
-    let book = sqlx::query_scalar::<_, String>("SELECT file_path FROM books WHERE file_hash = 'hash_moved'")
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+    let book = sqlx::query_scalar::<_, String>(
+        "SELECT file_path FROM books WHERE file_hash = 'hash_moved'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
     assert_eq!(book, "/library/moved.epub");
 }
 
@@ -1457,14 +1470,9 @@ async fn metadata_update_if_null_all_columns() {
     assert_eq!(meta.publisher, Some("Great Publisher".to_string()));
 
     // Update language (NULL -> value)
-    metadata_repo::update_if_null(
-        &db,
-        b1,
-        metadata_repo::MetadataColumn::Language,
-        "en",
-    )
-    .await
-    .unwrap();
+    metadata_repo::update_if_null(&db, b1, metadata_repo::MetadataColumn::Language, "en")
+        .await
+        .unwrap();
     let meta = book_repo::get_metadata(&db, b1).await.unwrap().unwrap();
     assert_eq!(meta.language, Some("en".to_string()));
 
@@ -1481,14 +1489,9 @@ async fn metadata_update_if_null_all_columns() {
     assert_eq!(meta.published_date, Some("2024-01-01".to_string()));
 
     // Update isbn_10 (NULL -> value)
-    metadata_repo::update_if_null(
-        &db,
-        b1,
-        metadata_repo::MetadataColumn::Isbn10,
-        "0123456789",
-    )
-    .await
-    .unwrap();
+    metadata_repo::update_if_null(&db, b1, metadata_repo::MetadataColumn::Isbn10, "0123456789")
+        .await
+        .unwrap();
     let meta = book_repo::get_metadata(&db, b1).await.unwrap().unwrap();
     assert_eq!(meta.isbn_10, Some("0123456789".to_string()));
 
@@ -1550,10 +1553,11 @@ async fn metadata_upsert_author_shares_author_across_books() {
     assert_eq!(a2, vec!["Shared Author"]);
 
     // There should be only one author row
-    let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM authors WHERE name = 'Shared Author'")
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+    let count =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM authors WHERE name = 'Shared Author'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(count, 1);
 }
 
@@ -1572,17 +1576,10 @@ async fn book_list_filtered_with_combined_filters() {
     link_book_author(&pool, b3, a1, 0).await;
 
     // Filter by author AND format — should only return b1 (epub by Combo Author)
-    let (rows, total) = book_repo::list_filtered(
-        &db,
-        None,
-        Some("Combo Author"),
-        None,
-        Some("epub"),
-        10,
-        0,
-    )
-    .await
-    .unwrap();
+    let (rows, total) =
+        book_repo::list_filtered(&db, None, Some("Combo Author"), None, Some("epub"), 10, 0)
+            .await
+            .unwrap();
     assert_eq!(total, 2); // b1 and b3 are both epub by Combo Author
     let ids: Vec<i64> = rows.iter().map(|r| r.id).collect();
     assert!(ids.contains(&b1));

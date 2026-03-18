@@ -16,10 +16,7 @@ pub async fn list_books(
     let (rows, total) =
         book_repo::list_filtered(db, sort, author, tag, format, limit, offset).await?;
 
-    let books: Vec<Value> = rows
-        .into_iter()
-        .map(format_book_list_row)
-        .collect();
+    let books: Vec<Value> = rows.into_iter().map(format_book_list_row).collect();
 
     Ok(json!({
         "books": books,
@@ -44,21 +41,23 @@ pub async fn get_book(db: &DatabaseConnection, id: i64) -> Result<Value, AppErro
         .and_then(|n| n.to_str())
         .unwrap_or("unknown");
 
-    let meta_json = metadata.map(|m| json!({
-        "title": m.title,
-        "subtitle": m.subtitle,
-        "description": m.description,
-        "publisher": m.publisher,
-        "published_date": m.published_date,
-        "page_count": m.page_count,
-        "language": m.language,
-        "isbn_10": m.isbn_10,
-        "isbn_13": m.isbn_13,
-        "series_name": m.series_name,
-        "series_number": m.series_number,
-        "has_cover": m.cover_image_path.is_some(),
-        "metadata_source": m.metadata_source,
-    }));
+    let meta_json = metadata.map(|m| {
+        json!({
+            "title": m.title,
+            "subtitle": m.subtitle,
+            "description": m.description,
+            "publisher": m.publisher,
+            "published_date": m.published_date,
+            "page_count": m.page_count,
+            "language": m.language,
+            "isbn_10": m.isbn_10,
+            "isbn_13": m.isbn_13,
+            "series_name": m.series_name,
+            "series_number": m.series_number,
+            "has_cover": m.cover_image_path.is_some(),
+            "metadata_source": m.metadata_source,
+        })
+    });
 
     Ok(json!({
         "book": {
@@ -85,10 +84,7 @@ pub async fn search_books(
     let fts_query = sanitize_fts_query(query);
     let rows = book_repo::search_fts(db, &fts_query, limit).await?;
 
-    let books: Vec<Value> = rows
-        .into_iter()
-        .map(format_book_list_row)
-        .collect();
+    let books: Vec<Value> = rows.into_iter().map(format_book_list_row).collect();
 
     Ok(json!({
         "books": books,
@@ -138,7 +134,12 @@ fn format_book_list_row(r: book_repo::BookListRow) -> Value {
 fn sanitize_fts_query(input: &str) -> String {
     let cleaned: String = input
         .chars()
-        .filter(|c| !matches!(c, '"' | '\'' | '*' | '+' | '-' | '(' | ')' | '{' | '}' | '^' | '~'))
+        .filter(|c| {
+            !matches!(
+                c,
+                '"' | '\'' | '*' | '+' | '-' | '(' | ')' | '{' | '}' | '^' | '~'
+            )
+        })
         .collect();
 
     let terms: Vec<String> = cleaned
@@ -195,19 +196,12 @@ mod tests {
 
     #[test]
     fn fts_mixed_special_and_words() {
-        assert_eq!(
-            sanitize_fts_query("hello+ world-"),
-            "\"hello\"* \"world\"*"
-        );
+        assert_eq!(sanitize_fts_query("hello+ world-"), "\"hello\"* \"world\"*");
     }
 
     // ── format_book_list_row ───────────────────────────────────────
 
-    fn make_row(
-        file_path: &str,
-        authors_agg: &str,
-        tags_agg: &str,
-    ) -> BookListRow {
+    fn make_row(file_path: &str, authors_agg: &str, tags_agg: &str) -> BookListRow {
         BookListRow {
             id: 1,
             file_path: file_path.to_string(),

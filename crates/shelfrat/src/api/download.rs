@@ -46,10 +46,7 @@ async fn download_book(
         .map_err(|e| AppError::Internal(format!("cannot read file metadata: {e}")))?;
 
     let content_type = mime_for_format(&book.file_format);
-    let filename = path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("book");
+    let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("book");
 
     let stream = ReaderStream::new(file);
     let body = Body::from_stream(stream);
@@ -132,21 +129,17 @@ async fn send_to_kindle(
         let u = user_repo::find_by_id(&state.db, user.id)
             .await?
             .ok_or(AppError::NotFound)?;
-        u.kindle_email
-            .filter(|e| !e.is_empty())
-            .ok_or_else(|| {
-                AppError::BadRequest(
-                    "no kindle email configured — set it in your profile or provide 'email' in request".into(),
-                )
-            })?
+        u.kindle_email.filter(|e| !e.is_empty()).ok_or_else(|| {
+            AppError::BadRequest(
+                "no kindle email configured — set it in your profile or provide 'email' in request"
+                    .into(),
+            )
+        })?
     };
 
     let smtp_config = SmtpConfig::from_db(&state.pool).await?;
 
-    let filename = path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("book");
+    let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("book");
     let content_type = mime_for_format(&book.file_format);
 
     email::send_book_email(&smtp_config, &to_email, filename, path, content_type).await?;
@@ -155,7 +148,10 @@ async fn send_to_kindle(
         &state.db,
         Some(user.id),
         "book_sent",
-        Some(&format!("user {} sent book {} to {}", user.username, id, to_email)),
+        Some(&format!(
+            "user {} sent book {} to {}",
+            user.username, id, to_email
+        )),
     )
     .await?;
 

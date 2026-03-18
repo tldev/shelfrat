@@ -146,7 +146,10 @@ mod tests {
     #[test]
     fn hash_password_produces_argon2_hash() {
         let hash = hash_password("testpassword123").unwrap();
-        assert!(hash.starts_with("$argon2"), "expected argon2 hash prefix, got: {hash}");
+        assert!(
+            hash.starts_with("$argon2"),
+            "expected argon2 hash prefix, got: {hash}"
+        );
     }
 
     #[test]

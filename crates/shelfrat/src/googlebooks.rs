@@ -9,7 +9,10 @@ pub async fn lookup_by_isbn(isbn: &str) -> Option<ExtractedMetadata> {
     let client = reqwest::Client::new();
     let resp = client
         .get(GB_VOLUMES_URL)
-        .query(&[("q", &format!("isbn:{isbn}")), ("maxResults", &"1".to_string())])
+        .query(&[
+            ("q", &format!("isbn:{isbn}")),
+            ("maxResults", &"1".to_string()),
+        ])
         .send()
         .await
         .ok()?;
@@ -30,7 +33,10 @@ pub async fn search_by_title(title: &str) -> Option<ExtractedMetadata> {
     let client = reqwest::Client::new();
     let resp = client
         .get(GB_VOLUMES_URL)
-        .query(&[("q", &format!("intitle:{title}")), ("maxResults", &"1".to_string())])
+        .query(&[
+            ("q", &format!("intitle:{title}")),
+            ("maxResults", &"1".to_string()),
+        ])
         .send()
         .await
         .ok()?;
@@ -47,7 +53,10 @@ pub async fn search_by_title(title: &str) -> Option<ExtractedMetadata> {
 }
 
 /// Convert a Google Books VolumeInfo to our ExtractedMetadata.
-async fn volume_to_metadata(vol: GbVolumeInfo, search_isbn: Option<String>) -> Option<ExtractedMetadata> {
+async fn volume_to_metadata(
+    vol: GbVolumeInfo,
+    search_isbn: Option<String>,
+) -> Option<ExtractedMetadata> {
     let title = vol.title.filter(|t| !t.is_empty());
     let description = vol.description.filter(|d| !d.is_empty());
     let publisher = vol.publisher.filter(|p| !p.is_empty());

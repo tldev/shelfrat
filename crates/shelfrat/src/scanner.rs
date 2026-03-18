@@ -46,15 +46,14 @@ pub fn scan_directory(library_path: &Path) -> Result<Vec<ScannedFile>, ScanError
         .collect();
 
     let mut cmd = std::process::Command::new("find");
-    cmd.arg(library_path)
-        .arg("-type").arg("f")
-        .arg("(");
+    cmd.arg(library_path).arg("-type").arg("f").arg("(");
     for arg in &ext_args {
         cmd.arg(arg);
     }
     cmd.arg(")");
 
-    let output = cmd.output()
+    let output = cmd
+        .output()
         .map_err(|e| ScanError::Io(library_path.to_path_buf(), e))?;
 
     if !output.status.success() {
@@ -69,7 +68,11 @@ pub fn scan_directory(library_path: &Path) -> Result<Vec<ScannedFile>, ScanError
         .map(PathBuf::from)
         .collect();
 
-    tracing::info!("find discovered {} ebook files in {}", paths.len(), library_path.display());
+    tracing::info!(
+        "find discovered {} ebook files in {}",
+        paths.len(),
+        library_path.display()
+    );
 
     let mut files = Vec::new();
     let mut skipped = 0u64;
@@ -117,8 +120,7 @@ pub fn scan_directory(library_path: &Path) -> Result<Vec<ScannedFile>, ScanError
 pub fn hash_file(path: &Path) -> Result<String, ScanError> {
     use std::io::Read;
 
-    let mut file =
-        std::fs::File::open(path).map_err(|e| ScanError::Io(path.to_path_buf(), e))?;
+    let mut file = std::fs::File::open(path).map_err(|e| ScanError::Io(path.to_path_buf(), e))?;
 
     let mut hasher = Sha256::new();
     let mut buf = [0u8; 8192];

@@ -162,10 +162,9 @@ fn resolve_oidc_role(config: &OidcConfig, claims: &IdTokenClaims) -> Option<Stri
 
     let is_admin = match claim_value {
         // Claim is an array (e.g. groups: ["users", "shelfrat-admin"])
-        serde_json::Value::Array(arr) => arr.iter().any(|v| {
-            v.as_str()
-                .is_some_and(|s| s == config.admin_value)
-        }),
+        serde_json::Value::Array(arr) => arr
+            .iter()
+            .any(|v| v.as_str().is_some_and(|s| s == config.admin_value)),
         // Claim is a plain string
         serde_json::Value::String(s) => s == &config.admin_value,
         _ => false,
@@ -220,11 +219,14 @@ async fn oidc_authorize(State(state): State<AppState>) -> Result<Json<Value>, Ap
         .append_pair("response_type", "code")
         .append_pair("client_id", &config.client_id)
         .append_pair("redirect_uri", &redirect_uri)
-        .append_pair("scope", if config.admin_value.is_empty() {
-            "openid email profile"
-        } else {
-            "openid email profile groups"
-        })
+        .append_pair(
+            "scope",
+            if config.admin_value.is_empty() {
+                "openid email profile"
+            } else {
+                "openid email profile groups"
+            },
+        )
         .append_pair("state", &state_jwt)
         .append_pair("nonce", &nonce);
 
@@ -332,11 +334,7 @@ async fn handle_oidc_callback(
 
     let (n, e) = match (key.n.as_ref(), key.e.as_ref()) {
         (Some(n), Some(e)) => (n, e),
-        _ => {
-            return Err(AppError::Internal(
-                "JWKS key missing RSA components".into(),
-            ))
-        }
+        _ => return Err(AppError::Internal("JWKS key missing RSA components".into())),
     };
 
     let decoding_key = DecodingKey::from_rsa_components(n, e)
@@ -355,7 +353,10 @@ async fn handle_oidc_callback(
 
     tracing::debug!(
         "OIDC claims: sub={}, email={:?}, name={:?}, preferred_username={:?}",
-        id_token.sub, id_token.email, id_token.name, id_token.preferred_username
+        id_token.sub,
+        id_token.email,
+        id_token.name,
+        id_token.preferred_username
     );
     tracing::debug!(
         "OIDC extra claims: {:?}",
@@ -364,7 +365,8 @@ async fn handle_oidc_callback(
     if !config.admin_value.is_empty() {
         tracing::debug!(
             "OIDC role mapping: claim={}, admin_value={}, claim_data={:?}",
-            config.admin_claim, config.admin_value,
+            config.admin_claim,
+            config.admin_value,
             id_token.extra.get(&config.admin_claim)
         );
     }
@@ -389,7 +391,9 @@ async fn handle_oidc_callback(
                     user_repo::update_role(&state.db, u.id, role).await?;
                     tracing::info!(
                         "OIDC role sync: {} changed from {} to {}",
-                        u.username, u.role, role
+                        u.username,
+                        u.role,
+                        role
                     );
                 }
             }
@@ -411,9 +415,7 @@ async fn handle_oidc_callback(
                         .as_ref()
                         .map(|e| e.split('@').next().unwrap_or("user").to_string())
                 })
-                .unwrap_or_else(|| {
-                    format!("oidc_{}", &id_token.sub[..8.min(id_token.sub.len())])
-                });
+                .unwrap_or_else(|| format!("oidc_{}", &id_token.sub[..8.min(id_token.sub.len())]));
 
             let email = id_token.email.unwrap_or_default();
             let display_name = id_token.name;
@@ -436,13 +438,17 @@ async fn handle_oidc_callback(
                 &state.db,
                 None,
                 "oidc_register",
-                Some(&format!("user {final_username} registered via OIDC as {role}")),
+                Some(&format!(
+                    "user {final_username} registered via OIDC as {role}"
+                )),
             )
             .await?;
 
             user_repo::find_by_oidc(&state.db, &id_token.sub, &discovery.issuer)
                 .await?
-                .ok_or(AppError::Internal("user not found after OIDC registration".into()))?
+                .ok_or(AppError::Internal(
+                    "user not found after OIDC registration".into(),
+                ))?
         }
     };
 

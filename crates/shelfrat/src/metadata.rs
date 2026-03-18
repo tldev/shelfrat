@@ -23,7 +23,10 @@ pub fn extract(path: &Path, format: &str) -> Option<ExtractedMetadata> {
 }
 
 /// Helper to extract a metadata value as a non-empty String.
-fn mdata_str(doc: &epub::doc::EpubDoc<std::io::BufReader<std::fs::File>>, key: &str) -> Option<String> {
+fn mdata_str(
+    doc: &epub::doc::EpubDoc<std::io::BufReader<std::fs::File>>,
+    key: &str,
+) -> Option<String> {
     doc.mdata(key)
         .map(|item| item.value.trim().to_string())
         .filter(|s| !s.is_empty())
@@ -39,8 +42,7 @@ fn extract_epub(path: &Path) -> Option<ExtractedMetadata> {
     let language = mdata_str(&doc, "language");
 
     // Try to find ISBN from identifiers
-    let isbn = mdata_str(&doc, "identifier")
-        .filter(|id| looks_like_isbn(id));
+    let isbn = mdata_str(&doc, "identifier").filter(|id| looks_like_isbn(id));
 
     // Collect authors from "creator" metadata entries
     let authors: Vec<String> = doc
@@ -71,7 +73,10 @@ fn extract_epub(path: &Path) -> Option<ExtractedMetadata> {
 
 /// Heuristic: does this string look like an ISBN-10 or ISBN-13?
 fn looks_like_isbn(s: &str) -> bool {
-    let digits: String = s.chars().filter(|c| c.is_ascii_digit() || *c == 'X').collect();
+    let digits: String = s
+        .chars()
+        .filter(|c| c.is_ascii_digit() || *c == 'X')
+        .collect();
     digits.len() == 10 || digits.len() == 13
 }
 

@@ -34,16 +34,20 @@ async fn main() -> anyhow::Result<()> {
 
     // Derive covers directory from DATABASE_URL (same dir as DB file) or /data
     let covers_dir = {
-        let db_path = database_url.strip_prefix("sqlite:").unwrap_or(&database_url);
-        let parent = std::path::Path::new(db_path).parent().unwrap_or(std::path::Path::new("."));
+        let db_path = database_url
+            .strip_prefix("sqlite:")
+            .unwrap_or(&database_url);
+        let parent = std::path::Path::new(db_path)
+            .parent()
+            .unwrap_or(std::path::Path::new("."));
         parent.join("covers")
     };
     tracing::info!("covers directory: {}", covers_dir.display());
 
     // Start background metadata queue if library path is configured
-    let meta_queue = library_path.as_ref().map(|_| {
-        metaqueue::start(pool.clone(), db.clone(), covers_dir.clone())
-    });
+    let meta_queue = library_path
+        .as_ref()
+        .map(|_| metaqueue::start(pool.clone(), db.clone(), covers_dir.clone()));
 
     // Start the job scheduler
     let job_handle = jobs::start(
@@ -54,13 +58,7 @@ async fn main() -> anyhow::Result<()> {
         covers_dir.clone(),
     );
 
-    let app_state = state::AppState::new(
-        db,
-        pool,
-        library_path,
-        meta_queue,
-        Some(job_handle),
-    );
+    let app_state = state::AppState::new(db, pool, library_path, meta_queue, Some(job_handle));
     let app = api::router(app_state);
 
     let addr: SocketAddr = format!("{host}:{port}").parse()?;

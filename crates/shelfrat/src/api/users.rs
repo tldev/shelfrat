@@ -14,7 +14,10 @@ pub fn routes() -> Router<AppState> {
         .route("/users", get(list_users))
         .route("/users/invite", post(create_invite))
         .route("/users/register/{token}", post(register_with_invite))
-        .route("/users/{id}", get(get_user).put(update_user).delete(revoke_user))
+        .route(
+            "/users/{id}",
+            get(get_user).put(update_user).delete(revoke_user),
+        )
 }
 
 async fn list_users(
@@ -109,7 +112,6 @@ async fn revoke_user(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<Value>, AppError> {
-    let result =
-        user_service::revoke_user(&state.db, id, admin.id, &admin.username).await?;
+    let result = user_service::revoke_user(&state.db, id, admin.id, &admin.username).await?;
     Ok(Json(result))
 }

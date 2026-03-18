@@ -184,10 +184,7 @@ pub async fn create_oidc_user(
 }
 
 /// Ensure a username is unique, appending a number if needed.
-pub async fn ensure_unique_username(
-    db: &DatabaseConnection,
-    base: &str,
-) -> Result<String, DbErr> {
+pub async fn ensure_unique_username(db: &DatabaseConnection, base: &str) -> Result<String, DbErr> {
     if count_by_username(db, base).await? == 0 {
         return Ok(base.to_string());
     }
@@ -199,10 +196,7 @@ pub async fn ensure_unique_username(
         }
     }
 
-    Ok(format!(
-        "{base}_{}",
-        &uuid::Uuid::new_v4().to_string()[..8]
-    ))
+    Ok(format!("{base}_{}", &uuid::Uuid::new_v4().to_string()[..8]))
 }
 
 #[cfg(test)]

@@ -10,12 +10,10 @@ use crate::repositories::{config_repo, job_repo};
 use crate::services::scan_service;
 
 /// Known job names.
-pub const KNOWN_JOBS: &[(&str, &str)] = &[
-    (
-        "library_scan",
-        "Scan library directory for new, modified, and removed ebooks",
-    ),
-];
+pub const KNOWN_JOBS: &[(&str, &str)] = &[(
+    "library_scan",
+    "Scan library directory for new, modified, and removed ebooks",
+)];
 
 /// Handle used to trigger jobs from API handlers.
 #[derive(Clone)]
@@ -26,10 +24,9 @@ pub struct JobHandle {
 impl JobHandle {
     /// Trigger a job by name, optionally recording who triggered it.
     pub fn trigger(&self, job_name: &str, triggered_by: Option<&str>) {
-        let _ = self.trigger_tx.send((
-            job_name.to_string(),
-            triggered_by.map(|s| s.to_string()),
-        ));
+        let _ = self
+            .trigger_tx
+            .send((job_name.to_string(), triggered_by.map(|s| s.to_string())));
     }
 }
 
@@ -198,13 +195,9 @@ async fn spawn_job(
             let meta_queue = meta_queue.clone();
             let _covers_dir = covers_dir.to_path_buf();
             tokio::spawn(async move {
-                let result = scan_service::run_library_scan_job(
-                    &db,
-                    &pool,
-                    &library_path,
-                    &meta_queue,
-                )
-                .await;
+                let result =
+                    scan_service::run_library_scan_job(&db, &pool, &library_path, &meta_queue)
+                        .await;
                 finish_job_run(&db, run_id, result).await;
             });
         }

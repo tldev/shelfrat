@@ -39,15 +39,16 @@
 	let sentinel: HTMLDivElement | undefined = $state();
 	let observer: IntersectionObserver | undefined = $state();
 
-	onMount(async () => {
+	onMount(() => {
 		loadBooks();
 		// Load filter options in background
-		try {
-			const [a, t, f] = await Promise.all([listAuthors(), listTags(), listFormats()]);
-			authors = a.authors;
-			tags = t.tags;
-			formats = f.formats;
-		} catch {}
+		Promise.all([listAuthors(), listTags(), listFormats()])
+			.then(([a, t, f]) => {
+				authors = a.authors;
+				tags = t.tags;
+				formats = f.formats;
+			})
+			.catch(() => {});
 
 		observer = new IntersectionObserver(
 			(entries) => {
@@ -58,7 +59,7 @@
 			{ rootMargin: '400px' }
 		);
 
-		return () => observer.disconnect();
+		return () => observer?.disconnect();
 	});
 
 	$effect(() => {

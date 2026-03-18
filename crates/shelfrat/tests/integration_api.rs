@@ -1517,14 +1517,8 @@ async fn responses_include_security_headers() {
         response.headers().get("x-content-type-options").unwrap(),
         "nosniff"
     );
-    assert_eq!(
-        response.headers().get("x-frame-options").unwrap(),
-        "DENY"
-    );
-    assert_eq!(
-        response.headers().get("x-xss-protection").unwrap(),
-        "0"
-    );
+    assert_eq!(response.headers().get("x-frame-options").unwrap(), "DENY");
+    assert_eq!(response.headers().get("x-xss-protection").unwrap(), "0");
     assert!(response.headers().get("referrer-policy").is_some());
     assert!(response.headers().get("permissions-policy").is_some());
     assert!(response.headers().get("content-security-policy").is_some());
