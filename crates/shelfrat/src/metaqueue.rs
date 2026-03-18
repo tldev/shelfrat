@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use sea_orm::DatabaseConnection;
@@ -8,6 +9,36 @@ use crate::provider_error::EnrichError;
 use crate::rate_limiter::RateLimiters;
 use crate::repositories::{config_repo, metadata_repo};
 use crate::services::{metadata_service, provider_service};
+
+const MAX_RATE_LIMITS_PER_BATCH: u32 = 5;
+
+/// Tracks per-provider rate limit hits within a batch and disables providers
+/// that exceed the threshold.
+struct BatchRateLimitTracker {
+    counts: HashMap<String, u32>,
+    max_hits: u32,
+}
+
+impl BatchRateLimitTracker {
+    fn new(max_hits: u32) -> Self {
+        Self {
+            counts: HashMap::new(),
+            max_hits,
+        }
+    }
+
+    /// Returns true if this provider has been rate-limited too many times.
+    fn is_disabled(&self, provider: &str) -> bool {
+        self.counts.get(provider).copied().unwrap_or(0) >= self.max_hits
+    }
+
+    /// Record a rate limit hit. Returns the new count.
+    fn record_rate_limit(&mut self, provider: &str) -> u32 {
+        let count = self.counts.entry(provider.to_string()).or_insert(0);
+        *count += 1;
+        *count
+    }
+}
 
 /// A handle for submitting book IDs to the background metadata queue.
 #[derive(Clone)]
@@ -64,13 +95,14 @@ async fn worker(
         }
 
         tracing::info!("metaqueue: processing batch of {} books", batch.len());
+        let mut rl_tracker = BatchRateLimitTracker::new(MAX_RATE_LIMITS_PER_BATCH);
         for (i, id) in batch.iter().enumerate() {
             tracing::info!(
                 "metaqueue: [{}/{}] processing book {id}",
                 i + 1,
                 batch.len()
             );
-            process_book(&pool, &db, *id, &covers_dir, &mut limiters).await;
+            process_book(&pool, &db, *id, &covers_dir, &mut limiters, &mut rl_tracker).await;
         }
         tracing::info!("metaqueue: batch complete");
     }
@@ -85,6 +117,7 @@ async fn process_book(
     book_id: i64,
     covers_dir: &std::path::Path,
     limiters: &mut RateLimiters,
+    rl_tracker: &mut BatchRateLimitTracker,
 ) {
     // Extract embedded metadata first (from the file itself)
     let needs_embedded = metadata_repo::needs_embedded_extraction(db, book_id)
@@ -105,6 +138,10 @@ async fn process_book(
             .unwrap_or(false)
         {
             break;
+        }
+        if rl_tracker.is_disabled(provider) {
+            tracing::debug!("metaqueue: skipping {provider} for book {book_id} (rate limited too many times this batch)");
+            continue;
         }
         if metadata_repo::provider_attempted(db, book_id, provider)
             .await
@@ -172,8 +209,13 @@ async fn process_book(
                 limiter.on_success();
             }
             Err(EnrichError::RateLimited) => {
-                tracing::warn!("metaqueue: {provider} rate limited for book {book_id}");
+                let count = rl_tracker.record_rate_limit(provider);
                 limiter.on_rate_limited();
+                if rl_tracker.is_disabled(provider) {
+                    tracing::warn!("metaqueue: {provider} rate limited {count} times, disabling for rest of batch");
+                } else {
+                    tracing::warn!("metaqueue: {provider} rate limited for book {book_id} ({count}/{MAX_RATE_LIMITS_PER_BATCH})");
+                }
             }
             Err(e) => {
                 tracing::warn!("metaqueue: {provider} failed for book {book_id}: {e}");
@@ -188,5 +230,61 @@ async fn process_book(
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tracker_not_disabled_initially() {
+        let tracker = BatchRateLimitTracker::new(5);
+        assert!(!tracker.is_disabled("googlebooks"));
+    }
+
+    #[test]
+    fn tracker_not_disabled_below_threshold() {
+        let mut tracker = BatchRateLimitTracker::new(5);
+        for _ in 0..4 {
+            tracker.record_rate_limit("googlebooks");
+        }
+        assert!(!tracker.is_disabled("googlebooks"));
+    }
+
+    #[test]
+    fn tracker_disabled_at_threshold() {
+        let mut tracker = BatchRateLimitTracker::new(5);
+        for _ in 0..5 {
+            tracker.record_rate_limit("googlebooks");
+        }
+        assert!(tracker.is_disabled("googlebooks"));
+    }
+
+    #[test]
+    fn tracker_disabled_above_threshold() {
+        let mut tracker = BatchRateLimitTracker::new(5);
+        for _ in 0..7 {
+            tracker.record_rate_limit("googlebooks");
+        }
+        assert!(tracker.is_disabled("googlebooks"));
+    }
+
+    #[test]
+    fn tracker_providers_are_independent() {
+        let mut tracker = BatchRateLimitTracker::new(5);
+        for _ in 0..5 {
+            tracker.record_rate_limit("googlebooks");
+        }
+        assert!(tracker.is_disabled("googlebooks"));
+        assert!(!tracker.is_disabled("openlibrary"));
+    }
+
+    #[test]
+    fn tracker_record_returns_count() {
+        let mut tracker = BatchRateLimitTracker::new(5);
+        assert_eq!(tracker.record_rate_limit("googlebooks"), 1);
+        assert_eq!(tracker.record_rate_limit("googlebooks"), 2);
+        assert_eq!(tracker.record_rate_limit("googlebooks"), 3);
     }
 }
