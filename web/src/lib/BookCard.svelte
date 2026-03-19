@@ -47,6 +47,7 @@
 		color: var(--fg);
 		padding: 0;
 		cursor: pointer;
+		min-width: 0;
 	}
 
 	.card:hover .title {
