@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/tldev/shelfrat/compare/v0.1.6...v0.1.7) (2026-03-19)
+
+
+### Features
+
+* add shelfrat icon, SEO meta, and fix dev CSP ([#23](https://github.com/tldev/shelfrat/issues/23)) ([0ee48a3](https://github.com/tldev/shelfrat/commit/0ee48a33cb316bc8e010520fc10b48fc1da49887))
+
 ## [0.1.6](https://github.com/tldev/shelfrat/compare/v0.1.5...v0.1.6) (2026-03-19)
 
 
