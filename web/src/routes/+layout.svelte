@@ -123,11 +123,12 @@
 		}
 
 		nav {
-			gap: 1rem;
+			gap: 0.25rem;
 		}
 
 		nav a {
 			font-size: 0.75rem;
+			padding: 0.5rem;
 		}
 
 		main {
