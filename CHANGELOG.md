@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/tldev/shelfrat/compare/v0.1.3...v0.1.4) (2026-03-19)
+
+
+### Bug Fixes
+
+* **frontend:** use CSP hashes instead of unsafe-inline for inline scripts ([#17](https://github.com/tldev/shelfrat/issues/17)) ([45a5447](https://github.com/tldev/shelfrat/commit/45a5447d7cebcf081af9c0571ffd19a60d9b9cd0))
+
 ## [0.1.3](https://github.com/tldev/shelfrat/compare/v0.1.2...v0.1.3) (2026-03-18)
 
 
