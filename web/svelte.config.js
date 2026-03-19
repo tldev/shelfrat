@@ -5,7 +5,18 @@ const config = {
 	kit: {
 		adapter: adapter({
 			fallback: 'index.html'
-		})
+		}),
+		csp: {
+			mode: 'hash',
+			directives: {
+				'default-src': ['self'],
+				'script-src': ['self'],
+				'style-src': ['self', 'https://fonts.googleapis.com'],
+				'font-src': ['self', 'https://fonts.gstatic.com'],
+				'img-src': ['self', 'data:'],
+				'connect-src': ['self']
+			}
+		}
 	},
 	vitePlugin: {
 		dynamicCompileOptions: ({ filename }) =>
