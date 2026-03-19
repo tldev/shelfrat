@@ -22,3 +22,26 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+
+      - name: Checkout release PR branch
+        if: steps.release.outputs.pr
+        uses: actions/checkout@v4
+        with:
+          ref: release-please--branches--main
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+
+      - name: Install Rust toolchain
+        if: steps.release.outputs.pr
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Update Cargo.lock
+        if: steps.release.outputs.pr
+        run: |
+          cargo update -p shelfrat
+          if ! git diff --quiet Cargo.lock; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add Cargo.lock
+            git commit -m "chore: update Cargo.lock version"
+            git push
+          fi
