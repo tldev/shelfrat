@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/tldev/shelfrat/compare/v0.1.5...v0.1.6) (2026-03-19)
+
+
+### Features
+
+* **frontend:** add shelfrat icon, favicon, and SEO meta ([#21](https://github.com/tldev/shelfrat/issues/21)) ([6be8938](https://github.com/tldev/shelfrat/commit/6be8938c4a184257f629ac1f1c2dd84d08f12ee7))
+
 ## [0.1.5](https://github.com/tldev/shelfrat/compare/v0.1.4...v0.1.5) (2026-03-19)
 
 
