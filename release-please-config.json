@@ -11,8 +11,7 @@
           "type": "toml",
           "path": "Cargo.toml",
           "jsonpath": "$.workspace.package.version"
-        },
-        "Cargo.lock"
+        }
       ]
     }
   }
