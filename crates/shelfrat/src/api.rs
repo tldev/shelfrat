@@ -86,7 +86,7 @@ async fn security_headers(req: Request<Body>, next: Next) -> Response {
     );
     headers.insert(
         "content-security-policy",
-        HeaderValue::from_static("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"),
+        HeaderValue::from_static("frame-ancestors 'none'"),
     );
     response
 }
