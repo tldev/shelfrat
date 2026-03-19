@@ -1,6 +1,17 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="web/static/favicon-light.svg">
+    <img src="web/static/favicon.svg" alt="shelfrat" width="128" height="128">
+  </picture>
+</p>
+
 # shelfrat
 
 Self-hosted ebook library management. Scan your library, enrich metadata from multiple providers, and send books to Kindle -- all from a clean web interface.
+
+## Demo
+
+https://github.com/user-attachments/assets/4bee9164-8fc8-4490-806c-c98215a66fa8
 
 ## Features
 
